@@ -31,3 +31,24 @@ commit it) with the variables below.
 ## Database
 
 Schema changes live in `supabase/migrations/`, applied in order.
+
+## Performance with a large history
+
+Opening the app never pulls your transactions. The rules that keep it fast:
+
+- **Pages read summaries, not transactions.** The Overview and Year pages call
+  database functions (`spending_by_month`, `spending_daily`, `top_merchants`,
+  `largest_purchases`) that return totals and a handful of top rows. What a page
+  reads stays the same size whether you have a thousand transactions or a million.
+  Load 100,000 transactions and the Overview still reads ~150 summary rows.
+- **The Transactions list is paginated** (50 rows a page). Filters and search use
+  indexes, including trigram indexes so searching descriptions stays fast.
+- **Nothing calls Plaid when a page loads.** Bank data arrives through the daily
+  cron job, "Sync now", or connecting a bank, and is stored in the database first.
+- **Big loads are resumable.** A sync or an auto-categorize run stops after ~45s
+  and continues on the next run instead of being killed by the serverless time
+  limit; a bank sync saves its place after every page, so no data is skipped or
+  repeated. CSV imports take up to 10,000 rows at a time and skip duplicates, so
+  importing a file again is safe.
+- **Add indexes with the queries that need them.** If you add a page that filters
+  or groups transactions, check it against a large data set first.

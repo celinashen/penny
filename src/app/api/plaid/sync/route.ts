@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { syncUserItems } from "@/lib/plaid/sync";
 
+export const maxDuration = 60;
+
 // Body: { itemId?: string }. "Sync now" for the signed-in user's connections.
 export async function POST(request: Request) {
   const user = await currentUser();

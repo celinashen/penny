@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccountBase, Transaction } from "plaid";
 import type { AccountType } from "@/lib/accounts";
+import { createCategorizer } from "@/lib/categorize";
 import { decryptToken } from "@/lib/crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { plaid, plaidErrorCode, plaidErrorMessage } from "./client";
@@ -13,7 +14,17 @@ export type SyncResult = {
   modified: number;
   removed: number;
   message?: string;
+  /** True when time ran out with history still to load; the next sync continues. */
+  more?: boolean;
 };
+
+/**
+ * How long one request may spend syncing before it stops and lets the next sync
+ * continue. Serverless requests are killed at a hard limit (60 seconds here), and
+ * a first sync of two years of history can be big; the cursor is saved after every
+ * page, so stopping early loses nothing.
+ */
+export const SYNC_BUDGET_MS = 45_000;
 
 export type ItemRow = {
   id: string;
@@ -107,6 +118,20 @@ async function ensureAccounts(
   return ids;
 }
 
+/** The user's categories and merchant rules, loaded once per sync. */
+async function loadCategorizer(admin: SupabaseClient, userId: string) {
+  const [cats, rules] = await Promise.all([
+    admin.from("categories").select("id, name").eq("user_id", userId),
+    admin.from("merchant_rules").select("merchant_key, category_id").eq("user_id", userId),
+  ]);
+  if (cats.error) throw cats.error;
+  if (rules.error) throw rules.error;
+  return createCategorizer(cats.data ?? [], rules.data ?? []);
+}
+
+type Categorizer = Awaited<ReturnType<typeof loadCategorizer>>;
+
+// Fields Plaid owns. Safe to rewrite whenever Plaid reports a change.
 function toRow(t: Transaction, userId: string, accountId: string) {
   return {
     user_id: userId,
@@ -123,13 +148,39 @@ function toRow(t: Transaction, userId: string, accountId: string) {
   };
 }
 
+// Fields we decide, applied only when a transaction is first seen so a later
+// Plaid update never overwrites a category or note you've set yourself.
+function toNewRow(
+  t: Transaction,
+  userId: string,
+  accountId: string,
+  categorize: Categorizer,
+) {
+  const c = categorize({
+    description: t.name,
+    merchant: t.merchant_name,
+    amount: -t.amount,
+    plaidCategory: t.personal_finance_category?.detailed,
+    country: t.location?.country,
+  });
+  return {
+    ...toRow(t, userId, accountId),
+    category_id: c.categoryId,
+    category_source: c.source,
+    notes: c.note,
+    country: c.country,
+  };
+}
+
 async function pullTransactions(
   admin: SupabaseClient,
   item: ItemRow,
   accessToken: string,
   accountIds: Map<string, string>,
+  deadline: number,
 ) {
-  const totals = { added: 0, modified: 0, removed: 0 };
+  const categorize = await loadCategorizer(admin, item.user_id);
+  const totals = { added: 0, modified: 0, removed: 0, more: false };
   // Only advanced after a page is fully applied, so a failure never skips data.
   let saved = item.transactions_cursor ?? undefined;
 
@@ -138,6 +189,13 @@ async function pullTransactions(
       let cursor = saved;
       let hasMore = true;
       while (hasMore) {
+        // Out of time: stop cleanly. Everything up to the saved cursor is stored,
+        // and the next sync carries on from there.
+        if (Date.now() >= deadline) {
+          totals.more = true;
+          return totals;
+        }
+
         const { data } = await plaid().transactionsSync({
           access_token: accessToken,
           cursor,
@@ -151,12 +209,31 @@ async function pullTransactions(
           refreshed.forEach((v, k) => accountIds.set(k, v));
         }
 
-        const rows = changed.flatMap((t) => {
+        // New transactions: categorized on the way in. If one is somehow
+        // delivered twice, "ignore duplicates" keeps the first copy untouched.
+        const fresh = data.added.flatMap((t) => {
+          const accountId = accountIds.get(t.account_id);
+          return accountId
+            ? [toNewRow(t, item.user_id, accountId, categorize)]
+            : [];
+        });
+        for (const part of chunks(fresh)) {
+          const { error } = await admin
+            .from("transactions")
+            .upsert(part, {
+              onConflict: "account_id,external_id",
+              ignoreDuplicates: true,
+            });
+          if (error) throw error;
+        }
+
+        // Changed transactions (e.g. pending -> posted): only Plaid's own
+        // fields are written, so your category and notes are left alone.
+        const updated = data.modified.flatMap((t) => {
           const accountId = accountIds.get(t.account_id);
           return accountId ? [toRow(t, item.user_id, accountId)] : [];
         });
-        // Upserting only these columns leaves your own category/notes intact.
-        for (const part of chunks(rows)) {
+        for (const part of chunks(updated)) {
           const { error } = await admin
             .from("transactions")
             .upsert(part, { onConflict: "account_id,external_id" });
@@ -205,6 +282,7 @@ async function pullTransactions(
 export async function syncItem(
   item: ItemRow,
   admin: SupabaseClient = createAdminClient(),
+  deadline: number = Date.now() + SYNC_BUDGET_MS,
 ): Promise<SyncResult> {
   const base = {
     itemId: item.id,
@@ -220,7 +298,12 @@ export async function syncItem(
   try {
     const accessToken = decryptToken(item.access_token_enc);
     const accountIds = await ensureAccounts(admin, item, accessToken);
-    const totals = await pullTransactions(admin, item, accessToken, accountIds);
+    const totals = await pullTransactions(admin, item, accessToken, accountIds, deadline);
+    if (totals.more) {
+      const message = "Still loading older transactions. They’ll finish on the next sync.";
+      await record({ status: "good", last_synced_at: new Date().toISOString(), last_error: message });
+      return { ...base, ...totals, status: "good", message };
+    }
     await record({
       status: "good",
       last_synced_at: new Date().toISOString(),
@@ -282,7 +365,22 @@ export async function syncAllItems(): Promise<SyncResult[]> {
 
 async function runAll(items: ItemRow[], admin: SupabaseClient) {
   const results: SyncResult[] = [];
+  // One budget shared by every connection in this request.
+  const deadline = Date.now() + SYNC_BUDGET_MS;
   for (const item of items) {
+    if (Date.now() >= deadline) {
+      results.push({
+        itemId: item.id,
+        institution: item.institution_name,
+        status: "good",
+        added: 0,
+        modified: 0,
+        removed: 0,
+        more: true,
+        message: "Out of time; this one will sync on the next run.",
+      });
+      continue;
+    }
     // Nothing to do until the user signs in to the bank again.
     if (item.status === "needs_reauth") {
       results.push({
@@ -296,7 +394,7 @@ async function runAll(items: ItemRow[], admin: SupabaseClient) {
       });
       continue;
     }
-    results.push(await syncItem(item, admin));
+    results.push(await syncItem(item, admin, deadline));
   }
   return results;
 }

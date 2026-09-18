@@ -3,6 +3,9 @@ import { currentUser } from "@/lib/auth";
 import { plaidErrorMessage } from "@/lib/plaid/client";
 import { linkItem } from "@/lib/plaid/link";
 
+// The first sync of a new bank can be large, so allow the longest request time.
+export const maxDuration = 60;
+
 // Body: { public_token: string }. Called once after a successful Plaid Link.
 export async function POST(request: Request) {
   const user = await currentUser();

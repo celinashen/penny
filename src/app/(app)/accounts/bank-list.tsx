@@ -20,8 +20,9 @@ function statusLine(item: BankItem) {
       tone: "text-negative",
     };
   }
+  // A note here on a healthy connection means a big first load is still finishing.
   return {
-    text: `Synced ${timeAgo(item.last_synced_at)}`,
+    text: `Synced ${timeAgo(item.last_synced_at)}${item.last_error ? ` · ${item.last_error}` : ""}`,
     tone: "text-muted",
   };
 }

@@ -17,6 +17,7 @@
   --color-mint: #4ade80;
   --color-positive: #0a7d55;
   --color-negative: #d0432e;
+  --color-warn: #9a6200;
 
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }

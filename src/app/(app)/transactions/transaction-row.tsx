@@ -1,0 +1,172 @@
+"use client";
+
+import { useActionState, useEffect, useState } from "react";
+import {
+  compactInputClass,
+  compactPrimaryClass,
+  compactSecondaryClass,
+} from "@/components/form-styles";
+import { merchantKey } from "@/lib/categorize/merchant-key";
+import { formatMoney, type Category, type Tx } from "@/lib/transactions";
+import { CategoryOptions } from "./category-select";
+import {
+  deleteTransaction,
+  updateTransaction,
+  type TxFormState,
+} from "./actions";
+
+const initial: TxFormState = {};
+
+export function TransactionRow({
+  tx,
+  categories,
+  showCurrency,
+}: {
+  tx: Tx;
+  categories: Category[];
+  showCurrency: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState(updateTransaction, initial);
+  const [delState, delAction, deleting] = useActionState(deleteTransaction, initial);
+
+  // Close the editor once a save goes through.
+  useEffect(() => {
+    if (state.ok) setOpen(false);
+  }, [state]);
+
+  const title = tx.merchant || tx.description;
+  const inflow = tx.amount > 0;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-raised/50 sm:px-5"
+      >
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 font-medium">
+            <span className="truncate">{title}</span>
+            {tx.pending && (
+              <span className="shrink-0 rounded-full bg-raised px-2 py-0.5 text-xs font-medium text-muted">
+                Pending
+              </span>
+            )}
+          </p>
+          <p className="truncate text-sm text-muted">
+            {tx.account.name}
+            {" · "}
+            {tx.category ? (
+              tx.category.name
+            ) : (
+              <span className="font-medium text-warn">Uncategorized</span>
+            )}
+            {tx.notes ? ` · ${tx.notes}` : ""}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 tabular-nums ${inflow ? "font-medium text-positive" : ""}`}
+        >
+          {formatMoney(tx.amount, tx.account.currency, true)}
+          {showCurrency && (
+            <span className="ml-1.5 text-xs font-normal text-muted">
+              {tx.account.currency}
+            </span>
+          )}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-line bg-background/60 px-4 py-4 sm:px-5">
+          <form action={action} className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="id" value={tx.id} />
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Category
+              <select
+                name="category_id"
+                defaultValue={tx.category_id ?? ""}
+                className={compactInputClass}
+              >
+                <CategoryOptions categories={categories} />
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Note
+              <input
+                name="notes"
+                defaultValue={tx.notes ?? ""}
+                maxLength={500}
+                placeholder="Add a note"
+                className={compactInputClass}
+              />
+            </label>
+
+            <label className="flex items-start gap-2.5 text-sm text-muted sm:col-span-2">
+              <input
+                type="checkbox"
+                name="apply"
+                defaultChecked
+                className="mt-0.5 h-4 w-4 accent-[#0a7d55]"
+              />
+              <span>
+                Use this category for other transactions from{" "}
+                <span className="font-medium text-foreground">
+                  &ldquo;{merchantKey(tx.description, tx.merchant)}&rdquo;
+                </span>
+              </span>
+            </label>
+
+            {state.error && (
+              <p role="alert" className="text-sm text-negative sm:col-span-2">
+                {state.error}
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <button type="submit" disabled={pending} className={compactPrimaryClass}>
+                {pending ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className={compactSecondaryClass}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+
+          {tx.source !== "plaid" && (
+            <form
+              action={delAction}
+              onSubmit={(e) => {
+                if (!window.confirm("Delete this transaction? This can’t be undone.")) {
+                  e.preventDefault();
+                }
+              }}
+              className="mt-3 flex items-center gap-3"
+            >
+              <input type="hidden" name="id" value={tx.id} />
+              <button
+                type="submit"
+                disabled={deleting}
+                className="text-sm font-medium text-muted transition-colors hover:text-negative disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Delete transaction"}
+              </button>
+              {delState.error && (
+                <span role="alert" className="text-sm text-negative">
+                  {delState.error}
+                </span>
+              )}
+            </form>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
