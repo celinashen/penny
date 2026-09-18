@@ -40,6 +40,10 @@ export async function updateSession(request: NextRequest) {
   );
 
   if (!signedIn && !isPublic) {
+    // API callers want a status code, not a redirect to the login page.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

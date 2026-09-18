@@ -30,9 +30,13 @@ export function AccountList({ accounts }: { accounts: Account[] }) {
                     <p className="truncate text-sm text-muted">
                       {a.institution ? `${a.institution} · ` : ""}
                       {accountTypeLabel(a.type)}
+                      {a.source === "plaid" ? " · Synced" : ""}
                     </p>
                   </div>
-                  <DeleteButton id={a.id} name={a.name} />
+                  {/* Synced accounts come back on the next sync if deleted. */}
+                  {a.source !== "plaid" && (
+                    <DeleteButton id={a.id} name={a.name} />
+                  )}
                 </li>
               ))}
             </ul>
