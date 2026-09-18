@@ -1,13 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { inputClass } from "@/components/form-styles";
 import { Wordmark } from "@/components/wordmark";
 import { signIn, signUp, type AuthState } from "./actions";
 
 const initial: AuthState = {};
-
-const inputClass =
-  "h-13 rounded-xl border border-line bg-surface px-4 text-base text-foreground outline-none transition-shadow placeholder:text-muted/60 focus:border-foreground focus:ring-4 focus:ring-foreground/10";
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
