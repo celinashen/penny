@@ -71,6 +71,9 @@ export function CurrencyOverview({
 
   const invested = series.invested[month] ?? 0;
   const investedBefore = series.invested[prev] ?? 0;
+  // Deducted from your paycheck into investments, so it never reached your bank.
+  const payroll = series.payroll[month] ?? 0;
+  const payrollYear = series.months.reduce((t, m) => t + (series.payroll[m] ?? 0), 0);
   const investedYear = series.months.reduce((t, m) => t + (series.invested[m] ?? 0), 0);
   const investedShare = income > 0 ? invested / income : null;
   const spentYear = series.months.reduce((t, m) => t + (series.spent[m] ?? 0), 0);
@@ -105,7 +108,11 @@ export function CurrencyOverview({
         </Stat>
         <Stat label="Income" value={formatMoney(income, currency)}>
           <span className="text-sm text-muted">
-            {series.income[prev] ? `${formatMoneyWhole(series.income[prev], currency)} in ${monthShort(prev)}` : " "}
+            {payroll > 0
+              ? `Includes ${formatMoneyWhole(payroll, currency)} invested through payroll`
+              : series.income[prev]
+                ? `${formatMoneyWhole(series.income[prev], currency)} in ${monthShort(prev)}`
+                : " "}
           </span>
         </Stat>
         <Stat
@@ -150,6 +157,13 @@ export function CurrencyOverview({
               />
             )}
           </div>
+          {payroll > 0 && (
+            <p className="mt-1 text-sm text-muted">
+              {formatMoneyWhole(Math.max(0, invested - payroll), currency)} from your bank
+              {" · "}
+              {formatMoneyWhole(payroll, currency)} through payroll
+            </p>
+          )}
         </div>
 
         <dl className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
@@ -258,6 +272,8 @@ export function CurrencyOverview({
         <p className="mb-3 text-sm text-muted">
           Every category for each of the past 12 months, {formatMonthLabel(first)} to{" "}
           {formatMonthLabel(month)}. The Total column and the bottom rows add up the whole year.
+          {payrollYear > 0 &&
+            " Income and Invested include contributions taken from your paycheck before it reached your bank."}
         </p>
         <dl className="mb-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
           <div>

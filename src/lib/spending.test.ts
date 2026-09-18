@@ -146,6 +146,42 @@ describe("buildSeries", () => {
     expect(s.invested).toEqual({ "2026-08": 300, "2026-09": 450 });
   });
 
+  describe("contributions made through payroll", () => {
+    const paycheck = row({ kind: "income", category_id: "inc", category_name: "Income", outflow: false, total: 3000 });
+    const bankInvesting = row({ kind: "investment", category_id: "inv", category_name: "Investments", total: -500 });
+
+    it("are added to income, because they never reached your bank", () => {
+      const s = buildSeries([paycheck], "USD", months, [{ month: "2026-09", currency: "USD", total: 850 }]);
+      expect(s.income["2026-09"]).toBe(3850);
+      expect(s.payroll["2026-09"]).toBe(850);
+    });
+
+    it("are added to what you contributed, on top of transfers from your bank", () => {
+      const s = buildSeries([bankInvesting], "USD", months, [{ month: "2026-09", currency: "USD", total: 850 }]);
+      expect(s.invested["2026-09"]).toBe(1350);
+    });
+
+    it("are not counted as spending", () => {
+      const s = buildSeries([row({ total: -40 })], "USD", months, [{ month: "2026-09", currency: "USD", total: 850 }]);
+      expect(s.spent["2026-09"]).toBe(40);
+    });
+
+    it("stay in their own currency and month range", () => {
+      const s = buildSeries([paycheck], "USD", months, [
+        { month: "2026-09", currency: "CAD", total: 100 },
+        { month: "2024-01", currency: "USD", total: 999 },
+      ]);
+      expect(s.income["2026-09"]).toBe(3000);
+      expect(s.payroll["2026-09"]).toBe(0);
+    });
+
+    it("leave income unchanged when there are none", () => {
+      const s = buildSeries([paycheck], "USD", months);
+      expect(s.income["2026-09"]).toBe(3000);
+      expect(s.payroll).toEqual({ "2026-08": 0, "2026-09": 0 });
+    });
+  });
+
   it("groups uncategorized spending", () => {
     const s = buildSeries([row({ category_id: null, category_name: null, kind: null, total: -12 })], "USD", months);
     expect(s.categories[0]).toMatchObject({ id: "uncategorized", name: "Uncategorized", total: 12 });

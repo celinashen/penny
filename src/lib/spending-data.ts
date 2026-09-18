@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Currency } from "./accounts";
-import type { AggRow } from "./spending";
+import type { AggRow, FlowRow } from "./spending";
 import { monthRange } from "./transactions";
 
 // Everything here asks the database for summaries (totals, a handful of top rows),
@@ -50,6 +50,24 @@ export async function fetchAggRows(
     if (batch.length < PAGE) break;
   }
   return rows;
+}
+
+/**
+ * Deposits into your paycheck-funded investment accounts, per month and currency:
+ * one small row per month. Returns null if the query fails.
+ */
+export async function fetchPayroll(
+  supabase: SupabaseClient,
+  months: string[],
+): Promise<FlowRow[] | null> {
+  const range = monthRange(months[months.length - 1]);
+  if (!range) return null;
+  const { data, error } = await supabase.rpc("payroll_contributions_by_month", {
+    p_from: `${months[0]}-01`,
+    p_to: range.to,
+  });
+  if (error) return null;
+  return ((data ?? []) as FlowRow[]).map((r) => ({ ...r, total: Number(r.total) }));
 }
 
 export type DailyRow = { day: string; currency: Currency; total: number };

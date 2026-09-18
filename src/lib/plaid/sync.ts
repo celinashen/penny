@@ -3,8 +3,10 @@ import type { AccountBase, Transaction } from "plaid";
 import type { AccountType } from "@/lib/accounts";
 import { createCategorizer } from "@/lib/categorize";
 import { decryptToken } from "@/lib/crypto";
+import { defaultPayrollFunded } from "@/lib/investments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { plaid, plaidErrorCode, plaidErrorMessage } from "./client";
+import { syncInvestments } from "./investments";
 
 export type SyncResult = {
   itemId: string;
@@ -16,6 +18,9 @@ export type SyncResult = {
   message?: string;
   /** True when time ran out with history still to load; the next sync continues. */
   more?: boolean;
+  /** For investment connections: positions found, and contributions recorded. */
+  holdings?: number;
+  contributions?: number;
 };
 
 /**
@@ -33,10 +38,13 @@ export type ItemRow = {
   access_token_enc: string;
   transactions_cursor: string | null;
   status: string;
+  /** What this connection provides: "transactions", "investments", or both. */
+  products: string[];
+  investments_backfilled: boolean;
 };
 
-const ITEM_COLUMNS =
-  "id, user_id, institution_name, access_token_enc, transactions_cursor, status";
+export const ITEM_COLUMNS =
+  "id, user_id, institution_name, access_token_enc, transactions_cursor, status, products, investments_backfilled";
 const CHUNK = 500;
 
 function chunks<T>(list: T[], size = CHUNK): T[][] {
@@ -87,8 +95,13 @@ async function ensureAccounts(
     }
   }
 
+  // A connection made only for investments has no transactions for the
+  // institution's other accounts (checking, loans...), so don't create empty ones.
+  const investmentsOnly = !(item.products?.length ? item.products : ["transactions"]).includes("transactions");
+
   for (const a of remote.accounts) {
     if (ids.has(a.account_id)) continue;
+    if (investmentsOnly && mapType(a) !== "investment") continue;
 
     // Account names are unique per user, so disambiguate collisions.
     let name = a.name;
@@ -97,18 +110,25 @@ async function ensureAccounts(
     for (let n = 2; names.has(name); n++) name = `${base} (${n})`;
     names.add(name);
 
+    const type = mapType(a);
     const { data: created, error: insertError } = await admin
       .from("accounts")
       .insert({
         user_id: item.user_id,
         name,
         institution: item.institution_name,
-        type: mapType(a),
+        type,
+        subtype: a.subtype ? String(a.subtype) : null,
         currency: a.balances.iso_currency_code === "CAD" ? "CAD" : "USD",
         source: "plaid",
         plaid_item_id: item.id,
         plaid_account_id: a.account_id,
         mask: a.mask,
+        // Deposits into a Fidelity account are treated as coming out of your
+        // paycheck. It's a setting on the account, so it can be turned off.
+        payroll_funded: defaultPayrollFunded(type, item.institution_name),
+        balance_current: a.balances.current ?? null,
+        balance_as_of: new Date().toISOString(),
       })
       .select("id")
       .single();
@@ -298,18 +318,34 @@ export async function syncItem(
   try {
     const accessToken = decryptToken(item.access_token_enc);
     const accountIds = await ensureAccounts(admin, item, accessToken);
-    const totals = await pullTransactions(admin, item, accessToken, accountIds, deadline);
-    if (totals.more) {
-      const message = "Still loading older transactions. They’ll finish on the next sync.";
+    const products = item.products?.length ? item.products : ["transactions"];
+
+    // A connection can provide bank transactions, investments, or both.
+    const totals = products.includes("transactions")
+      ? await pullTransactions(admin, item, accessToken, accountIds, deadline)
+      : { added: 0, modified: 0, removed: 0, more: false };
+    const investments = products.includes("investments")
+      ? await syncInvestments(admin, item, accessToken, accountIds, deadline)
+      : null;
+
+    const result = {
+      ...base,
+      ...totals,
+      status: "good" as const,
+      ...(investments ? { holdings: investments.holdings, contributions: investments.contributions } : {}),
+    };
+
+    if (totals.more || investments?.more) {
+      const message = "Still loading older history. It’ll finish on the next sync.";
       await record({ status: "good", last_synced_at: new Date().toISOString(), last_error: message });
-      return { ...base, ...totals, status: "good", message };
+      return { ...result, more: true, message };
     }
     await record({
       status: "good",
       last_synced_at: new Date().toISOString(),
       last_error: null,
     });
-    return { ...base, ...totals, status: "good" };
+    return result;
   } catch (err) {
     const code = plaidErrorCode(err);
 

@@ -6,6 +6,7 @@ import {
   fetchCurrencies,
   fetchDaily,
   fetchLargestPurchases,
+  fetchPayroll,
   fetchTopMerchants,
 } from "@/lib/spending-data";
 import { createClient } from "@/lib/supabase/server";
@@ -39,14 +40,15 @@ export default async function Overview({
   // Everything below is a summary read: totals and a handful of top rows. The page
   // never loads individual transactions, so it stays fast however many you have.
   const supabase = await createClient();
-  const [rows, daily, merchants, largest] = await Promise.all([
+  const [rows, daily, merchants, largest, payroll] = await Promise.all([
     fetchAggRows(supabase, months13, today?.day),
     today ? fetchDaily(supabase, month) : Promise.resolve([]),
     fetchTopMerchants(supabase, month),
     fetchLargestPurchases(supabase, month),
+    fetchPayroll(supabase, months12),
   ]);
 
-  if (!rows || !daily || !merchants || !largest) {
+  if (!rows || !daily || !merchants || !largest || !payroll) {
     return (
       <>
         <PageHeader title="Overview" />
@@ -69,7 +71,8 @@ export default async function Overview({
   ]);
 
   const view = resolveCurrencyView(first(sp.cur), currencies);
-  const seriesByCurrency = new Map(currencies.map((c) => [c, buildSeries(rows, c, months12)]));
+  // Income here includes contributions deducted from your paycheck into investments.
+  const seriesByCurrency = new Map(currencies.map((c) => [c, buildSeries(rows, c, months12, payroll)]));
   // Colors are decided from every currency, not just the ones shown.
   const colors = assignColors(mergeCategoryTotals([...seriesByCurrency.values()]));
   const inWindow = new Set(months12);
@@ -86,7 +89,7 @@ export default async function Overview({
       categories={(categoriesRes.data ?? []) as { id: string; name: string; kind: CategoryKind }[]}
       sections={view.shown.map((currency) => ({
         currency,
-        series: seriesByCurrency.get(currency) ?? buildSeries(rows, currency, months12),
+        series: seriesByCurrency.get(currency) ?? buildSeries(rows, currency, months12, payroll),
         pace: buildPace({ rows, currency, month, today }),
         cumulative: today
           ? cumulativeByDay(daily.filter((d) => d.currency === currency), today.day)

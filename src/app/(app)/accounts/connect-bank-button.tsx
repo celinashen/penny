@@ -30,10 +30,13 @@ export function ConnectBankButton({
   label,
   variant = "primary",
   confirmNew = false,
+  kind = "bank",
 }: {
   itemId?: string;
   label: string;
   variant?: "primary" | "secondary";
+  /** "investment" connects a brokerage (holdings and contributions) instead of a bank. */
+  kind?: "bank" | "investment";
   /** Ask before spending one of the limited real Plaid connections. */
   confirmNew?: boolean;
 }) {
@@ -50,7 +53,7 @@ export function ConnectBankButton({
           await post("/api/plaid/sync", { itemId });
         } else {
           if (!publicToken) throw new Error("Plaid didn’t return a token.");
-          await post("/api/plaid/exchange", { public_token: publicToken });
+          await post("/api/plaid/exchange", { public_token: publicToken, kind });
         }
         router.refresh();
       } catch (e) {
@@ -63,7 +66,7 @@ export function ConnectBankButton({
         setToken(null);
       }
     },
-    [itemId, router],
+    [itemId, kind, router],
   );
 
   const { open, ready } = usePlaidLink({
@@ -92,7 +95,7 @@ export function ConnectBankButton({
     setBusy(true);
     setError(null);
     try {
-      const data = await post("/api/plaid/link-token", { itemId });
+      const data = await post("/api/plaid/link-token", { itemId, kind });
       setToken(data.link_token);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
