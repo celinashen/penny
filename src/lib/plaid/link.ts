@@ -6,9 +6,12 @@ import {
 import { decryptToken, encryptToken } from "@/lib/crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { plaid } from "./client";
-import { syncItem, type ItemRow, type SyncResult } from "./sync";
+import { ITEM_COLUMNS, syncItem, type ItemRow, type SyncResult } from "./sync";
 
 const COUNTRIES = [CountryCode.Us, CountryCode.Ca];
+
+/** What a new connection is for. Brokerages like Fidelity and Robinhood are "investment". */
+export type LinkKind = "bank" | "investment";
 
 /**
  * A short-lived token that opens Plaid Link in the browser.
@@ -19,6 +22,7 @@ const COUNTRIES = [CountryCode.Us, CountryCode.Ca];
 export async function createLinkToken(
   userId: string,
   itemId?: string,
+  kind: LinkKind = "bank",
 ): Promise<string> {
   const request: LinkTokenCreateRequest = {
     user: { client_user_id: userId },
@@ -45,6 +49,9 @@ export async function createLinkToken(
       .single();
     if (error || !data) throw new Error("Connection not found.");
     request.access_token = decryptToken(data.access_token_enc);
+  } else if (kind === "investment") {
+    // Holdings and contributions. Plaid provides up to two years of history.
+    request.products = [Products.Investments];
   } else {
     request.products = [Products.Transactions];
     // Ask for as much history as Plaid allows; this can't be changed later.
@@ -63,16 +70,22 @@ export async function createLinkToken(
 export async function linkItem(
   userId: string,
   publicToken: string,
+  kind: LinkKind = "bank",
 ): Promise<SyncResult> {
   const { data: exchange } = await plaid().itemPublicTokenExchange({
     public_token: publicToken,
   });
   const accessToken = exchange.access_token;
 
+  // What we asked this connection for, plus anything Plaid reports it provides.
+  const products = new Set<string>([kind === "investment" ? "investments" : "transactions"]);
   let institutionId: string | null = null;
   let institutionName: string | null = null;
   try {
     const { data } = await plaid().itemGet({ access_token: accessToken });
+    for (const p of data.item.billed_products ?? []) {
+      if (p === Products.Transactions || p === Products.Investments) products.add(String(p));
+    }
     institutionId = data.item.institution_id ?? null;
     if (institutionId) {
       const { data: inst } = await plaid().institutionsGetById({
@@ -95,12 +108,11 @@ export async function linkItem(
         institution_id: institutionId,
         institution_name: institutionName,
         access_token_enc: encryptToken(accessToken),
+        products: [...products],
       },
       { onConflict: "plaid_item_id" },
     )
-    .select(
-      "id, user_id, institution_name, access_token_enc, transactions_cursor, status",
-    )
+    .select(ITEM_COLUMNS)
     .single();
   if (error || !row) throw error ?? new Error("Couldn't save the connection.");
 

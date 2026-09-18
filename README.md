@@ -28,6 +28,21 @@ commit it) with the variables below.
 | `PLAID_WEBHOOK_URL` | Optional. Public URL Plaid calls when new transactions are ready |
 | `SUPABASE_ACCESS_TOKEN` | Optional, only for applying migrations from the command line |
 
+## Investments and paycheck contributions
+
+Brokerages (Fidelity, Robinhood...) connect through Plaid's Investments product
+and provide holdings, each account's total value, and deposits. Gain or loss uses
+the cost basis the institution reports; positions without one are left out and
+counted, never guessed.
+
+Money deducted from a paycheck and sent straight to an investment account never
+passes through the bank, so it would otherwise be missing from income. Each
+investment account has a "deposits come from my paycheck" setting. When it's on,
+deposits are added to **income** and to **money invested** on the Overview. It
+defaults to on for Fidelity accounts and off for everything else, because
+deposits into a brokerage like Robinhood usually come from your own bank account
+and would be counted twice (once as a transfer out of the bank, once as a deposit).
+
 ## Database
 
 Schema changes live in `supabase/migrations/`, applied in order.

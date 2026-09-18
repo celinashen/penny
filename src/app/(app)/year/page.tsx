@@ -6,7 +6,7 @@ import {
   monthsEndingAt,
   monthsYearToDate,
 } from "@/lib/spending";
-import { fetchAggRows, fetchCurrencies } from "@/lib/spending-data";
+import { fetchAggRows, fetchCurrencies, fetchPayroll } from "@/lib/spending-data";
 import { createClient } from "@/lib/supabase/server";
 import { currentMonth } from "@/lib/transactions";
 import { resolveCurrencyView } from "@/lib/view-params";
@@ -30,8 +30,11 @@ export default async function Year({
   const shownMonths = range === "ytd" ? monthsYearToDate(end) : last12;
 
   const supabase = await createClient();
-  const rows = await fetchAggRows(supabase, last12);
-  if (!rows) {
+  const [rows, payroll] = await Promise.all([
+    fetchAggRows(supabase, last12),
+    fetchPayroll(supabase, last12),
+  ]);
+  if (!rows || !payroll) {
     return (
       <>
         <PageHeader title="Year" />
@@ -47,7 +50,7 @@ export default async function Year({
   const shownSet = new Set(shownMonths);
   // Same colors as the Overview: ranked over the last 12 months and every currency.
   const colors = assignColors(
-    mergeCategoryTotals(currencies.map((c) => buildSeries(rows, c, last12))),
+    mergeCategoryTotals(currencies.map((c) => buildSeries(rows, c, last12, payroll))),
   );
 
   return (
@@ -59,7 +62,7 @@ export default async function Year({
       colors={colors}
       sections={view.shown.map((currency) => ({
         currency,
-        shown: buildSeries(rows, currency, shownMonths),
+        shown: buildSeries(rows, currency, shownMonths, payroll),
       }))}
     />
   );

@@ -23,10 +23,19 @@ export type CategorySeries = {
   total: number;
 };
 
+/** Deposits into paycheck-funded investment accounts, per month and currency. */
+export type FlowRow = { month: string; currency: Currency; total: number };
+
 export type Series = {
   months: string[];
   spent: Record<string, number>;
+  /** Paychecks and other income, plus contributions made through payroll. */
   income: Record<string, number>;
+  /**
+   * The part of `income` (and of `invested`) that was deducted from your paycheck
+   * and went straight into investment accounts, so it never reached your bank.
+   */
+  payroll: Record<string, number>;
   /**
    * Contributed to investments, per month: money moved into investing, net of
    * any withdrawn back out. Not counted as spending.
@@ -59,14 +68,23 @@ export function monthsYearToDate(end: string): string[] {
  *  - Income is money into income categories.
  *  - Investment contributions are saving, so they're tallied as `invested` and
  *    never counted as spending.
+ *  - Contributions made through payroll (deposits into paycheck-funded
+ *    investment accounts) never passed through your bank, so they're added to
+ *    `income` as well as `invested`, giving a truer picture of what you earned.
  *  - Uncategorized spending is grouped as "Uncategorized"; uncategorized money
  *    in is not counted anywhere, only tallied as `unreviewed`.
  */
-export function buildSeries(rows: AggRow[], currency: Currency, months: string[]): Series {
+export function buildSeries(
+  rows: AggRow[],
+  currency: Currency,
+  months: string[],
+  payrollRows: FlowRow[] = [],
+): Series {
   const wanted = new Set(months);
   const zero = () => Object.fromEntries(months.map((m) => [m, 0])) as Record<string, number>;
   const spent = zero();
   const income = zero();
+  const payroll = zero();
   const invested = zero();
   const unreviewed = zero();
   const byCategory = new Map<string, CategorySeries>();
@@ -100,9 +118,19 @@ export function buildSeries(rows: AggRow[], currency: Currency, months: string[]
     spent[r.month] += -amount;
   }
 
+  // Deducted from your paycheck before it reached the bank: earned, and invested.
+  for (const p of payrollRows) {
+    if (p.currency !== currency || !wanted.has(p.month)) continue;
+    const amount = Number(p.total);
+    payroll[p.month] += amount;
+    income[p.month] += amount;
+    invested[p.month] += amount;
+  }
+
   for (const m of months) {
     spent[m] = round(spent[m]);
     income[m] = round(income[m]);
+    payroll[m] = round(payroll[m]);
     invested[m] = round(invested[m]);
   }
   const categories = [...byCategory.values()]
@@ -113,7 +141,7 @@ export function buildSeries(rows: AggRow[], currency: Currency, months: string[]
     }))
     .sort((a, b) => b.total - a.total);
 
-  return { months, spent, income, invested, unreviewed, categories };
+  return { months, spent, income, payroll, invested, unreviewed, categories };
 }
 
 export const sum = (values: number[]) => round(values.reduce((a, b) => a + b, 0));
