@@ -7,19 +7,13 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "@/components/form-styles";
-
-const json = { "Content-Type": "application/json" };
-
-async function post(url: string, body: unknown) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: json,
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
-  return data;
-}
+import {
+  DOUBLE_ADD_WARNING,
+  clearLinkSession,
+  completeLink,
+  post,
+  saveLinkSession,
+} from "@/lib/plaid-browser";
 
 /**
  * Opens Plaid Link. Without `itemId` it connects a new bank; with one it
@@ -49,19 +43,12 @@ export function ConnectBankButton({
     // Update mode (reconnecting) has no public token: the Item already exists.
     async (publicToken: string | null) => {
       try {
-        if (itemId) {
-          await post("/api/plaid/sync", { itemId });
-        } else {
-          if (!publicToken) throw new Error("Plaid didn’t return a token.");
-          await post("/api/plaid/exchange", { public_token: publicToken, kind });
-        }
+        await completeLink(publicToken, { itemId, kind });
         router.refresh();
       } catch (e) {
-        setError(
-          `${e instanceof Error ? e.message : "Something went wrong."} ` +
-            "Refresh the page before trying again, so the same bank isn’t added twice.",
-        );
+        setError(`${e instanceof Error ? e.message : "Something went wrong."} ${DOUBLE_ADD_WARNING}`);
       } finally {
+        clearLinkSession();
         setBusy(false);
         setToken(null);
       }
@@ -73,6 +60,7 @@ export function ConnectBankButton({
     token,
     onSuccess,
     onExit: () => {
+      clearLinkSession();
       setBusy(false);
       setToken(null);
     },
@@ -96,6 +84,14 @@ export function ConnectBankButton({
     setError(null);
     try {
       const data = await post("/api/plaid/link-token", { itemId, kind });
+      // Kept while you're at a bank that uses OAuth, so the return page can
+      // finish this same connection when the bank sends you back.
+      saveLinkSession({
+        token: data.link_token,
+        itemId,
+        kind,
+        returnTo: `${window.location.pathname}${window.location.search}`,
+      });
       setToken(data.link_token);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");

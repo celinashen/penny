@@ -28,6 +28,27 @@ commit it) with the variables below.
 | `PLAID_WEBHOOK_URL` | Optional. Public URL Plaid calls when new transactions are ready |
 | `SUPABASE_ACCESS_TOKEN` | Optional, only for applying migrations from the command line |
 
+## Deploying (Vercel + Supabase)
+
+1. Import the repo into Vercel and add the environment variables above (mark the
+   secrets as Sensitive). **Do not add `SUPABASE_ACCESS_TOKEN`**: it's an
+   account-wide key that is only for running migrations from your own machine.
+2. `PLAID_TOKEN_KEY` must be the same value everywhere the app runs, because they
+   all share one database. Keep a copy in a password manager.
+3. In Supabase (Authentication, URL Configuration) set the Site URL to the
+   deployed address and add it to the redirect URLs.
+4. Start with `PLAID_ENV=sandbox` and check the deployed site end to end before
+   switching to production: each real bank uses one of a limited number of Plaid
+   connections.
+5. For production, register `https://<your-domain>/plaid/oauth` under Allowed
+   redirect URIs in the Plaid dashboard and set `PLAID_REDIRECT_URI` to the same
+   address. Banks that use OAuth (Chase, Bank of America and others) send you
+   there to finish connecting.
+6. The daily sync is a Vercel cron job (`vercel.json`) that calls
+   `/api/cron/sync`; Vercel sends `CRON_SECRET` automatically.
+7. After you and anyone else who will use the app have signed up, turn off new
+   sign-ups in Supabase.
+
 ## Investments and paycheck contributions
 
 Brokerages (Fidelity, Robinhood...) connect through Plaid's Investments product
