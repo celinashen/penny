@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   compactInputClass,
   compactPrimaryClass,
@@ -31,6 +32,7 @@ export function TransactionRow({
   mealCandidates: MealCandidate[];
   showCurrency: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(updateTransaction, initial);
   const [delState, delAction, deleting] = useActionState(deleteTransaction, initial);
@@ -39,8 +41,14 @@ export function TransactionRow({
 
   // Close the editor once a save goes through.
   useEffect(() => {
-    if (state.ok) setOpen(false);
-  }, [state]);
+    if (!state.ok) return;
+    setOpen(false);
+    router.refresh();
+  }, [router, state]);
+
+  useEffect(() => {
+    if (linkState.ok || unlinkState.ok) router.refresh();
+  }, [linkState, router, unlinkState]);
 
   const title = tx.merchant || tx.description;
   const inflow = tx.amount > 0;
