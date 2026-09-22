@@ -38,16 +38,30 @@ commit it) with the variables below.
 3. In Supabase (Authentication, URL Configuration) set the Site URL to the
    deployed address and add it to the redirect URLs.
 4. Start with `PLAID_ENV=sandbox` and check the deployed site end to end before
-   switching to production: each real bank uses one of a limited number of Plaid
-   connections.
-5. For production, register `https://<your-domain>/plaid/oauth` under Allowed
-   redirect URIs in the Plaid dashboard and set `PLAID_REDIRECT_URI` to the same
-   address. Banks that use OAuth (Chase, Bank of America and others) send you
-   there to finish connecting.
-6. The daily sync is a Vercel cron job (`vercel.json`) that calls
+   switching to production. `PLAID_ENV` is required; the app will not silently
+   fall back to Sandbox. Each real bank login uses one of a limited number of
+   production Plaid Items.
+5. Before using production, register `https://<your-domain>/plaid/oauth` under
+   Allowed redirect URIs in the Plaid dashboard and set `PLAID_REDIRECT_URI` to
+   that exact address in Vercel. It must be HTTPS. Banks that use OAuth (Chase,
+   Bank of America and others) send you there to finish connecting.
+6. In Vercel, set the production deployment variables to the production Plaid
+   client ID and secret, `PLAID_ENV=production`, and the same
+   `PLAID_TOKEN_KEY` used by Supabase. Redeploy after changing them. Do not
+   click Connect until the deployment is using the production variables.
+7. The daily sync is a Vercel cron job (`vercel.json`) that calls
    `/api/cron/sync`; Vercel sends `CRON_SECRET` automatically.
-7. After you and anyone else who will use the app have signed up, turn off new
+8. After you and anyone else who will use the app have signed up, turn off new
    sign-ups in Supabase.
+
+### Protecting limited production Items
+
+The Accounts and Investments pages ask for confirmation before creating a new
+production Item. Reconnecting an existing row uses Plaid update mode and does
+not consume another Item. Never delete a Plaid row or rotate `PLAID_TOKEN_KEY`:
+both can make an existing bank impossible to repair without linking it again.
+Use **Reconnect** when a bank reports that sign-in is required, and **Sync now**
+for a normal refresh.
 
 ## Investments and paycheck contributions
 

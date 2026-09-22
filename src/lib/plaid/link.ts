@@ -24,6 +24,16 @@ export async function createLinkToken(
   itemId?: string,
   kind: LinkKind = "bank",
 ): Promise<string> {
+  const plaidEnv = process.env.PLAID_ENV;
+  if (plaidEnv === "production") {
+    const redirectUri = process.env.PLAID_REDIRECT_URI;
+    if (!redirectUri || !redirectUri.startsWith("https://")) {
+      throw new Error(
+        "PLAID_REDIRECT_URI must be an HTTPS URL when Plaid production is enabled.",
+      );
+    }
+  }
+
   const request: LinkTokenCreateRequest = {
     user: { client_user_id: userId },
     client_name: "Penny",
