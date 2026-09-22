@@ -27,6 +27,18 @@ export type Tx = {
   source: "plaid" | "csv" | "manual";
   account: { id: string; name: string; currency: Currency };
   category: { id: string; name: string; kind: CategoryKind } | null;
+  reimbursement?: {
+    id: string;
+    amount: number;
+    expense: {
+      id: string;
+      posted_date: string;
+      description: string;
+      merchant: string | null;
+      amount: number;
+      category: { name: string } | null;
+    };
+  } | null;
 };
 
 export const PAGE_SIZE = 50;

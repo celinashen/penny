@@ -14,7 +14,9 @@ const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Dat
 
 function refresh() {
   revalidatePath("/transactions");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
+  revalidatePath("/year");
+  revalidatePath("/investments");
 }
 
 export async function createTransaction(
@@ -110,10 +112,83 @@ export async function updateTransaction(
     } else if (applied > 0) {
       message = `Saved. Also updated ${applied} similar transaction${applied === 1 ? "" : "s"}.`;
     }
+
   }
 
   refresh();
   return { ok: true, message };
+}
+
+export async function linkReimbursement(
+  _prev: TxFormState,
+  formData: FormData,
+): Promise<TxFormState> {
+  const reimbursementId = text(formData, "reimbursement_id");
+  const expenseId = text(formData, "expense_id");
+  if (!reimbursementId || !expenseId) return { error: "Choose a meal to reimburse." };
+
+  const supabase = await createClient();
+  const [{ data: reimbursement }, { data: expense }] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("id, amount")
+      .eq("id", reimbursementId)
+      .single(),
+    supabase
+      .from("transactions")
+      .select("id, amount, category:categories(kind)")
+      .eq("id", expenseId)
+      .single(),
+  ]);
+  if (!reimbursement || !expense || Number(reimbursement.amount) <= 0) {
+    return { error: "That reimbursement could not be found." };
+  }
+  const category = expense.category as unknown as { kind: string } | null;
+  if (Number(expense.amount) >= 0 || category?.kind !== "expense") {
+    return { error: "Choose an expense transaction." };
+  }
+
+  const { data: existing } = await supabase
+    .from("transaction_reimbursements")
+    .select("id")
+    .eq("reimbursement_transaction_id", reimbursementId)
+    .maybeSingle();
+  if (existing) return { error: "This payment is already attached to an expense." };
+
+  const { data: linked } = await supabase
+    .from("transaction_reimbursements")
+    .select("amount")
+    .eq("expense_transaction_id", expenseId);
+  const alreadyApplied = (linked ?? []).reduce((sum, row) => sum + Number(row.amount), 0);
+  if (alreadyApplied + Number(reimbursement.amount) > Math.abs(Number(expense.amount)) + 0.005) {
+    return { error: "That would reimburse more than the meal cost." };
+  }
+
+  const { error } = await supabase.from("transaction_reimbursements").insert({
+    reimbursement_transaction_id: reimbursementId,
+    expense_transaction_id: expenseId,
+    amount: Number(reimbursement.amount),
+  });
+  if (error) return { error: "Couldn’t attach that payment." };
+
+  refresh();
+  return { ok: true };
+}
+
+export async function unlinkReimbursement(
+  _prev: TxFormState,
+  formData: FormData,
+): Promise<TxFormState> {
+  const id = text(formData, "id");
+  if (!id) return { error: "Missing reimbursement." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("transaction_reimbursements")
+    .delete()
+    .eq("id", id);
+  if (error) return { error: "Couldn’t remove that attachment." };
+  refresh();
+  return { ok: true };
 }
 
 /**

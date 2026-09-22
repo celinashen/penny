@@ -81,6 +81,13 @@ and would be counted twice (once as a transfer out of the bank, once as a deposi
 ## Database
 
 Schema changes live in `supabase/migrations/`, applied in order.
+There is no demo transaction or bank data in the app: a new account starts
+empty until you connect Plaid, import a CSV, or add a transaction manually.
+
+Incoming reimbursements can be attached to a recent expense from the
+Transactions page. The incoming transaction stays visible for auditing, but
+the linked amount is removed from income and reduces the original expense in
+the spending summaries. Removing the attachment restores the original totals.
 
 ## Performance with a large history
 

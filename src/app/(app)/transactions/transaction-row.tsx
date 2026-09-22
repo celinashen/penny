@@ -1,16 +1,20 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   compactInputClass,
   compactPrimaryClass,
   compactSecondaryClass,
 } from "@/components/form-styles";
 import { merchantKey } from "@/lib/categorize/merchant-key";
-import { formatMoney, type Category, type Tx } from "@/lib/transactions";
+import { formatDay, formatMoney, type Category, type Tx } from "@/lib/transactions";
+import type { MealCandidate } from "./page";
 import { CategoryOptions } from "./category-select";
 import {
   deleteTransaction,
+  linkReimbursement,
+  unlinkReimbursement,
   updateTransaction,
   type TxFormState,
 } from "./actions";
@@ -20,20 +24,31 @@ const initial: TxFormState = {};
 export function TransactionRow({
   tx,
   categories,
+  mealCandidates,
   showCurrency,
 }: {
   tx: Tx;
   categories: Category[];
+  mealCandidates: MealCandidate[];
   showCurrency: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(updateTransaction, initial);
   const [delState, delAction, deleting] = useActionState(deleteTransaction, initial);
+  const [linkState, linkAction, linking] = useActionState(linkReimbursement, initial);
+  const [unlinkState, unlinkAction, unlinking] = useActionState(unlinkReimbursement, initial);
 
   // Close the editor once a save goes through.
   useEffect(() => {
-    if (state.ok) setOpen(false);
-  }, [state]);
+    if (!state.ok) return;
+    setOpen(false);
+    router.refresh();
+  }, [router, state]);
+
+  useEffect(() => {
+    if (linkState.ok || unlinkState.ok) router.refresh();
+  }, [linkState, router, unlinkState]);
 
   const title = tx.merchant || tx.description;
   const inflow = tx.amount > 0;
@@ -139,6 +154,52 @@ export function TransactionRow({
               </button>
             </div>
           </form>
+
+          {tx.amount > 0 && (
+            <div className="mt-4 border-t border-line pt-4">
+              {tx.reimbursement ? (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted">
+                    Applied to {tx.reimbursement.expense.merchant || tx.reimbursement.expense.description}
+                    {" "}({formatMoney(tx.reimbursement.amount, tx.account.currency)})
+                  </span>
+                  <form action={unlinkAction}>
+                    <input type="hidden" name="id" value={tx.reimbursement.id} />
+                    <button type="submit" disabled={unlinking} className="font-medium text-muted hover:text-negative">
+                      {unlinking ? "Removing…" : "Remove"}
+                    </button>
+                  </form>
+                  {unlinkState.error && <span role="alert" className="text-negative">{unlinkState.error}</span>}
+                </div>
+              ) : (
+                <form action={linkAction} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="reimbursement_id" value={tx.id} />
+                  <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium">
+                    Apply to a recent meal
+                    <select name="expense_id" defaultValue="" className={compactInputClass}>
+                      <option value="">Choose an expense</option>
+                      {mealCandidates
+                        .filter(
+                          (meal) =>
+                            meal.id !== tx.id &&
+                            meal.amount < 0 &&
+                            meal.account.currency === tx.account.currency,
+                        )
+                        .map((meal) => (
+                          <option key={meal.id} value={meal.id}>
+                            {formatDay(meal.posted_date)} · {meal.merchant || meal.description} · {formatMoney(Math.abs(meal.amount), meal.account.currency)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <button type="submit" disabled={linking} className={compactSecondaryClass}>
+                    {linking ? "Applying…" : "Apply"}
+                  </button>
+                  {linkState.error && <span role="alert" className="w-full text-sm text-negative">{linkState.error}</span>}
+                </form>
+              )}
+            </div>
+          )}
 
           {tx.source !== "plaid" && (
             <form
