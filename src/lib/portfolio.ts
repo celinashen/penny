@@ -23,6 +23,8 @@ export type PortfolioHolding = {
   cost_basis: number | null;
   price: number | null;
   market_value: number | null;
+  /** Null for a hand-entered holding; set for one Plaid keeps in sync. */
+  plaid_security_id: string | null;
 };
 
 export type PortfolioTotals = {

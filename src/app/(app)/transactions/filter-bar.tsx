@@ -72,14 +72,14 @@ export function FilterBar({
         ))}
       </select>
 
-      <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-2">
+      <div className="flex flex-wrap items-center gap-2 sm:col-span-2 lg:col-span-2">
         <input
           type="date"
           name="from"
           defaultValue={filters.from}
           aria-label="From date"
           max={filters.to || undefined}
-          className={`${compactInputClass} min-w-0 flex-1`}
+          className={`${compactInputClass} min-w-0 flex-1 basis-32`}
         />
         <span className="shrink-0 text-sm text-muted">to</span>
         <input
@@ -88,7 +88,7 @@ export function FilterBar({
           defaultValue={filters.to}
           aria-label="To date"
           min={filters.from || undefined}
-          className={`${compactInputClass} min-w-0 flex-1`}
+          className={`${compactInputClass} min-w-0 flex-1 basis-32`}
         />
       </div>
 

@@ -73,7 +73,7 @@ export default async function Investments({
     for (let offset = 0; offset < 20_000; offset += 1000) {
       const { data, error } = await supabase
         .from("holdings")
-        .select("id, account_id, ticker, name, security_type, quantity, cost_basis, price, market_value")
+        .select("id, account_id, ticker, name, security_type, quantity, cost_basis, price, market_value, plaid_security_id")
         .order("id")
         .range(offset, offset + 999);
       if (error) {
@@ -97,6 +97,7 @@ export default async function Investments({
           cost_basis: num(h.cost_basis),
           price: num(h.price),
           market_value: num(h.market_value),
+          plaid_security_id: h.plaid_security_id,
         })),
       );
       if ((data ?? []).length < 1000) break;

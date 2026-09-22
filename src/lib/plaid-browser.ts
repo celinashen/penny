@@ -11,6 +11,8 @@ export type LinkSession = {
   token: string;
   /** Set when reopening an existing connection (Plaid "update mode") to repair it or add an account. */
   itemId?: string;
+  /** Set when this update-mode session is granting the Investments product, not just repairing. */
+  addInvestments?: boolean;
   kind: LinkKind;
   /** Where to send you when it's done. */
   returnTo: string;
@@ -67,6 +69,7 @@ export function readLinkSession(
       returnTo: s.returnTo,
       savedAt: s.savedAt,
       ...(typeof s.itemId === "string" ? { itemId: s.itemId } : {}),
+      ...(s.addInvestments === true ? { addInvestments: true as const } : {}),
     };
   } catch {
     return null;
@@ -99,10 +102,13 @@ export async function post(url: string, body: unknown) {
  */
 export async function completeLink(
   publicToken: string | null,
-  session: Pick<LinkSession, "itemId" | "kind">,
+  session: Pick<LinkSession, "itemId" | "kind" | "addInvestments">,
 ) {
   if (session.itemId) {
-    await post("/api/plaid/sync", { itemId: session.itemId });
+    await post("/api/plaid/sync", {
+      itemId: session.itemId,
+      ...(session.addInvestments ? { addProducts: ["investments"] } : {}),
+    });
     return;
   }
   if (!publicToken) throw new Error("Plaid didn’t return a token.");
