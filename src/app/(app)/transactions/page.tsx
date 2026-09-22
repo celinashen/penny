@@ -27,6 +27,16 @@ const first = (v: string | string[] | undefined) =>
 // PostgREST treats these as syntax inside an .or() filter.
 const cleanSearch = (q: string) => q.replace(/[%,()*\\]/g, " ").trim();
 
+export type MealCandidate = {
+  id: string;
+  posted_date: string;
+  description: string;
+  merchant: string | null;
+  amount: number;
+  account: { currency: Currency };
+  category: { name: string } | null;
+};
+
 export default async function Transactions({
   searchParams,
 }: {
@@ -84,6 +94,34 @@ export default async function Transactions({
 
   const { data, count, error } = await query;
   const transactions = (data ?? []) as unknown as Tx[];
+  const transactionIds = transactions.map((tx) => tx.id);
+  const [{ data: links }, { data: meals }] = await Promise.all([
+    transactionIds.length
+      ? supabase
+          .from("transaction_reimbursements")
+          .select("id, reimbursement_transaction_id, amount, expense:transactions!transaction_reimbursements_expense_transaction_id_fkey(id, posted_date, description, merchant, amount, category:categories(name))")
+          .in("reimbursement_transaction_id", transactionIds)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("transactions")
+      .select("id, posted_date, description, merchant, amount, account:accounts(currency), category:categories!inner(name, kind)")
+      .lt("amount", 0)
+      .eq("category.kind", "expense")
+      .order("posted_date", { ascending: false })
+      .limit(30),
+  ]);
+  const linkByReimbursement = new Map(
+    (links ?? []).map((link) => [link.reimbursement_transaction_id, link]),
+  );
+  for (const tx of transactions) {
+    const link = linkByReimbursement.get(tx.id);
+    if (link) tx.reimbursement = {
+      id: link.id,
+      amount: Number(link.amount),
+      expense: link.expense as unknown as NonNullable<Tx["reimbursement"]>["expense"],
+    };
+  }
+  const mealCandidates = (meals ?? []) as unknown as MealCandidate[];
   const total = count ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const showCurrency = new Set(accounts.map((a) => a.currency)).size > 1;
@@ -178,6 +216,7 @@ export default async function Transactions({
                     key={tx.id}
                     tx={tx}
                     categories={categories}
+                    mealCandidates={mealCandidates}
                     showCurrency={showCurrency}
                   />
                 ))}
