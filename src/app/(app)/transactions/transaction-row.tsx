@@ -81,7 +81,7 @@ export function TransactionRow({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-raised/50 sm:px-5"
+        className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-raised/50 sm:px-5"
       >
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-medium">

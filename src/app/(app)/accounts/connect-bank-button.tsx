@@ -18,8 +18,10 @@ import {
 /**
  * Opens Plaid Link. Without `itemId` it connects a new bank, spending one of
  * your Plaid Items. With one it reopens that connection in Plaid "update
- * mode" instead — reusing the same Item, whether to repair a broken login or
- * to pick up a newly opened account (like a new credit card) at that bank.
+ * mode" instead — reusing the same Item, whether to repair a broken login, to
+ * pick up a newly opened account (like a new credit card) at that bank, or
+ * (with `addInvestments`) to grant the Investments product to a connection
+ * that was linked without it.
  */
 export function ConnectBankButton({
   itemId,
@@ -27,6 +29,7 @@ export function ConnectBankButton({
   variant = "primary",
   confirmNew = false,
   kind = "bank",
+  addInvestments = false,
 }: {
   itemId?: string;
   label: string;
@@ -35,6 +38,8 @@ export function ConnectBankButton({
   kind?: "bank" | "investment";
   /** Ask before spending one of the limited real Plaid connections. */
   confirmNew?: boolean;
+  /** With itemId: request the Investments product for a connection that doesn't have it yet. */
+  addInvestments?: boolean;
 }) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -45,7 +50,7 @@ export function ConnectBankButton({
     // Update mode (reconnecting) has no public token: the Item already exists.
     async (publicToken: string | null) => {
       try {
-        await completeLink(publicToken, { itemId, kind });
+        await completeLink(publicToken, { itemId, kind, addInvestments });
         router.refresh();
       } catch (e) {
         setError(`${e instanceof Error ? e.message : "Something went wrong."} ${DOUBLE_ADD_WARNING}`);
@@ -55,7 +60,7 @@ export function ConnectBankButton({
         setToken(null);
       }
     },
-    [itemId, kind, router],
+    [itemId, kind, addInvestments, router],
   );
 
   const { open, ready } = usePlaidLink({
@@ -85,13 +90,14 @@ export function ConnectBankButton({
     setBusy(true);
     setError(null);
     try {
-      const data = await post("/api/plaid/link-token", { itemId, kind });
+      const data = await post("/api/plaid/link-token", { itemId, kind, addInvestments });
       // Kept while you're at a bank that uses OAuth, so the return page can
       // finish this same connection when the bank sends you back.
       saveLinkSession({
         token: data.link_token,
         itemId,
         kind,
+        addInvestments,
         returnTo: `${window.location.pathname}${window.location.search}`,
       });
       setToken(data.link_token);

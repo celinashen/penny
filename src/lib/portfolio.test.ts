@@ -15,7 +15,7 @@ const account = (over: Partial<PortfolioAccount> = {}): PortfolioAccount => ({
 
 const holding = (over: Partial<PortfolioHolding> = {}): PortfolioHolding => ({
   id: "h1", account_id: "a1", ticker: "VTI", name: "Vanguard Total Market", security_type: "etf",
-  quantity: 10, cost_basis: 1000, price: 150, market_value: 1500, ...over,
+  quantity: 10, cost_basis: 1000, price: 150, market_value: 1500, plaid_security_id: "plaid-1", ...over,
 });
 
 describe("contributionInflow", () => {

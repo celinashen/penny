@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/components/card";
 import { DonutChart, DonutLegend } from "@/components/charts/donut";
 import { EmptyState } from "@/components/empty-state";
@@ -15,7 +16,6 @@ import { timeAgo } from "@/lib/time";
 import { formatDay, formatMoney, formatMoneyWhole } from "@/lib/transactions";
 import type { CurrencyView } from "@/lib/view-params";
 import { ConnectBankButton } from "../accounts/connect-bank-button";
-import { HoldingsTable } from "./holdings-table";
 import { PayrollToggle } from "./payroll-toggle";
 
 export type InvestmentAccount = PortfolioAccount & { balance_as_of: string | null };
@@ -105,8 +105,15 @@ export function PortfolioView({
       {accounts.length === 0 ? (
         <EmptyState
           title="No investment accounts yet"
-          description="Connect Fidelity, Robinhood or another brokerage to see your holdings, their value, and your gain or loss. Deposits into a Fidelity account count as money from your paycheck, and are added to your income."
-        />
+          description="Connect a brokerage to see your holdings, their value, and your gain or loss."
+        >
+          <Link
+            href="/accounts"
+            className="mt-4 rounded-full bg-foreground px-6 py-3 font-medium text-surface transition-opacity hover:opacity-85"
+          >
+            Add an account by hand
+          </Link>
+        </EmptyState>
       ) : (
         <div className="flex flex-col gap-14">
           {view.shown.map((currency) => {
@@ -145,11 +152,8 @@ function CurrencySection({
   stats?: ContributionStats;
   showHeading: boolean;
 }) {
-  const ids = new Set(accounts.map((a) => a.id));
-  const mine = holdings.filter((h) => ids.has(h.account_id));
   const totals = summarizePortfolio(accounts, holdings);
   const slices = allocation(accounts, holdings);
-  const accountNames = new Map(accounts.map((a) => [a.id, a.name]));
   const updated = accounts
     .map((a) => a.balance_as_of)
     .filter((d): d is string => Boolean(d))
@@ -252,14 +256,6 @@ function CurrencySection({
           </ul>
         </Card>
       </div>
-
-      <Card title="Holdings" subtitle="Every position, biggest first. Values are as of the last sync.">
-        {mine.length === 0 ? (
-          <p className="text-muted">No holdings yet. They appear after the first sync.</p>
-        ) : (
-          <HoldingsTable holdings={mine} accountNames={accountNames} currency={currency} />
-        )}
-      </Card>
 
       <Card
         title="Contributions"
