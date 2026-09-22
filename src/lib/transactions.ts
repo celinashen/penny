@@ -27,6 +27,8 @@ export type Tx = {
   source: "plaid" | "csv" | "manual";
   account: { id: string; name: string; currency: Currency };
   category: { id: string; name: string; kind: CategoryKind } | null;
+  trip_id: string | null;
+  trip: { id: string; name: string } | null;
   reimbursement?: {
     id: string;
     amount: number;

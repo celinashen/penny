@@ -41,6 +41,17 @@ const ITEMS: Item[] = [
     ),
   },
   {
+    href: "/trips",
+    label: "Trips",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="7" width="18" height="13" rx="2" />
+        <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        <path d="M3 12h18" />
+      </svg>
+    ),
+  },
+  {
     href: "/year",
     label: "Year",
     icon: (
@@ -115,7 +126,7 @@ export function TabBar() {
       aria-label="Main"
       className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md rounded-3xl border border-line bg-surface/80 p-1.5 shadow-[0_8px_30px_-8px_rgba(14,21,18,0.18)] backdrop-blur-xl lg:hidden"
     >
-      <ul className="grid grid-cols-5 gap-1">
+      <ul className="grid grid-cols-6 gap-1">
         {ITEMS.map(({ href, label, icon }) => {
           const active = isActive(href);
           return (

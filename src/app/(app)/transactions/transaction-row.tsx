@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -18,19 +19,28 @@ import {
   updateTransaction,
   type TxFormState,
 } from "./actions";
+import { detachFromTrip, type TripFormState } from "../trips/trip-actions";
 
 const initial: TxFormState = {};
+const tripInitial: TripFormState = {};
 
 export function TransactionRow({
   tx,
   categories,
   mealCandidates,
   showCurrency,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: {
   tx: Tx;
   categories: Category[];
   mealCandidates: MealCandidate[];
   showCurrency: boolean;
+  /** Whether a trip exists to select this row for, so bulk-attach is possible. */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,6 +48,7 @@ export function TransactionRow({
   const [delState, delAction, deleting] = useActionState(deleteTransaction, initial);
   const [linkState, linkAction, linking] = useActionState(linkReimbursement, initial);
   const [unlinkState, unlinkAction, unlinking] = useActionState(unlinkReimbursement, initial);
+  const [detachState, detachAction, detaching] = useActionState(detachFromTrip, tripInitial);
 
   // Close the editor once a save goes through.
   useEffect(() => {
@@ -47,14 +58,25 @@ export function TransactionRow({
   }, [router, state]);
 
   useEffect(() => {
-    if (linkState.ok || unlinkState.ok) router.refresh();
-  }, [linkState, router, unlinkState]);
+    if (linkState.ok || unlinkState.ok || detachState.ok) router.refresh();
+  }, [linkState, router, unlinkState, detachState]);
 
   const title = tx.merchant || tx.description;
   const inflow = tx.amount > 0;
 
   return (
-    <li>
+    <li className="flex items-stretch">
+      {selectable && (
+        <label className="flex shrink-0 items-center pl-4 sm:pl-5">
+          <span className="sr-only">Select {title}</span>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            className="h-4 w-4 accent-[#0a7d55]"
+          />
+        </label>
+      )}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -78,6 +100,7 @@ export function TransactionRow({
             ) : (
               <span className="font-medium text-warn">Uncategorized</span>
             )}
+            {tx.trip ? ` · ${tx.trip.name}` : ""}
             {tx.notes ? ` · ${tx.notes}` : ""}
           </p>
         </div>
@@ -154,6 +177,33 @@ export function TransactionRow({
               </button>
             </div>
           </form>
+
+          {tx.trip && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4 text-sm">
+              <span className="text-muted">
+                Part of the{" "}
+                <Link href={`/trips/${tx.trip.id}`} className="font-medium text-foreground hover:underline">
+                  {tx.trip.name}
+                </Link>{" "}
+                trip, counted under Travel.
+              </span>
+              <form action={detachAction}>
+                <input type="hidden" name="id" value={tx.id} />
+                <button
+                  type="submit"
+                  disabled={detaching}
+                  className="font-medium text-muted hover:text-negative"
+                >
+                  {detaching ? "Removing…" : "Remove from trip"}
+                </button>
+              </form>
+              {detachState.error && (
+                <span role="alert" className="text-negative">
+                  {detachState.error}
+                </span>
+              )}
+            </div>
+          )}
 
           {tx.amount > 0 && (
             <div className="mt-4 border-t border-line pt-4">

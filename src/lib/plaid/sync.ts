@@ -66,32 +66,46 @@ function mapType(a: AccountBase): AccountType {
   }
 }
 
+export type AccountLinks = {
+  /** Plaid account id -> our account id, for every account under this Item. */
+  ids: Map<string, string>;
+  /**
+   * Our account ids that you've closed. Kept out of Plaid so a closed
+   * account doesn't come back on its own, but still reported here so new
+   * activity for it can be skipped rather than reappearing silently.
+   */
+  closedIds: Set<string>;
+};
+
 /**
  * Makes sure every account Plaid reports for this Item exists in our accounts
  * table, and returns Plaid account id -> our account id. Existing rows are left
- * alone so a name you've changed isn't overwritten.
+ * alone so a name you've changed isn't overwritten, and a closed one is never
+ * recreated -- its row (and history) just stays put, marked closed.
  */
 async function ensureAccounts(
   admin: SupabaseClient,
   item: ItemRow,
   accessToken: string,
-): Promise<Map<string, string>> {
+): Promise<AccountLinks> {
   const { data: remote } = await plaid().accountsGet({
     access_token: accessToken,
   });
 
   const { data: existing, error } = await admin
     .from("accounts")
-    .select("id, name, plaid_item_id, plaid_account_id")
+    .select("id, name, plaid_item_id, plaid_account_id, closed")
     .eq("user_id", item.user_id);
   if (error) throw error;
 
   const ids = new Map<string, string>();
+  const closedIds = new Set<string>();
   const names = new Set<string>();
   for (const a of existing ?? []) {
     names.add(a.name);
     if (a.plaid_item_id === item.id && a.plaid_account_id) {
       ids.set(a.plaid_account_id, a.id);
+      if (a.closed) closedIds.add(a.id);
     }
   }
 
@@ -135,7 +149,7 @@ async function ensureAccounts(
     if (insertError) throw insertError;
     ids.set(a.account_id, created.id);
   }
-  return ids;
+  return { ids, closedIds };
 }
 
 /** The user's categories and merchant rules, loaded once per sync. */
@@ -197,6 +211,7 @@ async function pullTransactions(
   item: ItemRow,
   accessToken: string,
   accountIds: Map<string, string>,
+  closedIds: Set<string>,
   deadline: number,
 ) {
   const categorize = await loadCategorizer(admin, item.user_id);
@@ -226,14 +241,16 @@ async function pullTransactions(
         if (changed.some((t) => !accountIds.has(t.account_id))) {
           // A new account showed up since we last looked.
           const refreshed = await ensureAccounts(admin, item, accessToken);
-          refreshed.forEach((v, k) => accountIds.set(k, v));
+          refreshed.ids.forEach((v, k) => accountIds.set(k, v));
+          refreshed.closedIds.forEach((id) => closedIds.add(id));
         }
 
         // New transactions: categorized on the way in. If one is somehow
         // delivered twice, "ignore duplicates" keeps the first copy untouched.
+        // A closed account's history stays put, but nothing new is added to it.
         const fresh = data.added.flatMap((t) => {
           const accountId = accountIds.get(t.account_id);
-          return accountId
+          return accountId && !closedIds.has(accountId)
             ? [toNewRow(t, item.user_id, accountId, categorize)]
             : [];
         });
@@ -251,7 +268,9 @@ async function pullTransactions(
         // fields are written, so your category and notes are left alone.
         const updated = data.modified.flatMap((t) => {
           const accountId = accountIds.get(t.account_id);
-          return accountId ? [toRow(t, item.user_id, accountId)] : [];
+          return accountId && !closedIds.has(accountId)
+            ? [toRow(t, item.user_id, accountId)]
+            : [];
         });
         for (const part of chunks(updated)) {
           const { error } = await admin
@@ -317,12 +336,12 @@ export async function syncItem(
 
   try {
     const accessToken = decryptToken(item.access_token_enc);
-    const accountIds = await ensureAccounts(admin, item, accessToken);
+    const { ids: accountIds, closedIds } = await ensureAccounts(admin, item, accessToken);
     const products = item.products?.length ? item.products : ["transactions"];
 
     // A connection can provide bank transactions, investments, or both.
     const totals = products.includes("transactions")
-      ? await pullTransactions(admin, item, accessToken, accountIds, deadline)
+      ? await pullTransactions(admin, item, accessToken, accountIds, closedIds, deadline)
       : { added: 0, modified: 0, removed: 0, more: false };
     const investments = products.includes("investments")
       ? await syncInvestments(admin, item, accessToken, accountIds, deadline)

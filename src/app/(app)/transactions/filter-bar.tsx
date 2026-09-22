@@ -4,17 +4,27 @@ import Link from "next/link";
 import { compactInputClass } from "@/components/form-styles";
 import type { Category } from "@/lib/transactions";
 
-export type Filters = { q: string; account: string; category: string; month: string };
+export type Filters = {
+  q: string;
+  account: string;
+  category: string;
+  month: string;
+  trip: string;
+  from: string;
+  to: string;
+};
 
 /** A plain GET form: filters live in the URL, so they can be bookmarked and shared. */
 export function FilterBar({
   filters,
   accounts,
   categories,
+  trips,
 }: {
   filters: Filters;
   accounts: { id: string; name: string }[];
   categories: Category[];
+  trips: { id: string; name: string }[];
 }) {
   const active = Object.values(filters).some(Boolean);
 
@@ -22,12 +32,12 @@ export function FilterBar({
     <form
       method="get"
       action="/transactions"
-      // Selects and the month picker apply immediately; search waits for Enter.
+      // Selects and the date pickers apply immediately; search waits for Enter.
       onChange={(e) => {
         const t = e.target;
         if (
           t instanceof HTMLSelectElement ||
-          (t instanceof HTMLInputElement && t.type === "month")
+          (t instanceof HTMLInputElement && t.type === "date")
         ) {
           e.currentTarget.requestSubmit();
         }
@@ -62,13 +72,36 @@ export function FilterBar({
         ))}
       </select>
 
-      <input
-        type="month"
-        name="month"
-        defaultValue={filters.month}
-        aria-label="Month"
-        className={compactInputClass}
-      />
+      <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-2">
+        <input
+          type="date"
+          name="from"
+          defaultValue={filters.from}
+          aria-label="From date"
+          max={filters.to || undefined}
+          className={`${compactInputClass} min-w-0 flex-1`}
+        />
+        <span className="shrink-0 text-sm text-muted">to</span>
+        <input
+          type="date"
+          name="to"
+          defaultValue={filters.to}
+          aria-label="To date"
+          min={filters.from || undefined}
+          className={`${compactInputClass} min-w-0 flex-1`}
+        />
+      </div>
+
+      {trips.length > 0 && (
+        <select name="trip" defaultValue={filters.trip} aria-label="Trip" className={compactInputClass}>
+          <option value="">All trips</option>
+          {trips.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       {active ? (
         <Link

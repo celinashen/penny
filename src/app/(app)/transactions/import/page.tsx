@@ -13,6 +13,7 @@ export default async function ImportTransactions() {
   const { data, error } = await supabase
     .from("accounts")
     .select("id, name, currency")
+    .eq("closed", false)
     .order("name");
   const accounts = (data ?? []) as { id: string; name: string; currency: Currency }[];
 

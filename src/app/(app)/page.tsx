@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
+import { countryName } from "@/lib/categorize/foreign";
 import { buildPace, cumulativeByDay, type Today } from "@/lib/pace";
-import { assignColors, buildSeries, mergeCategoryTotals, monthsEndingAt } from "@/lib/spending";
+import { assignAllColors, assignColors, buildSeries, mergeCategoryTotals, monthsEndingAt } from "@/lib/spending";
 import {
   fetchAggRows,
   fetchCurrencies,
@@ -59,22 +60,47 @@ export default async function Overview({
     );
   }
 
-  const [currencies, accounts, latest, categoriesRes] = await Promise.all([
+  // Purchases made abroad that aren't already accounted for by a trip, recent
+  // enough to still be worth a nudge -- "flag at the top of Overview" that a
+  // trip might be worth creating for them.
+  const recentCutoff = new Date(now);
+  recentCutoff.setDate(recentCutoff.getDate() - 60);
+
+  const [currencies, accounts, latest, categoriesRes, foreignRes] = await Promise.all([
     fetchCurrencies(supabase, rows),
-    supabase.from("accounts").select("id", { count: "exact", head: true }),
+    supabase.from("accounts").select("id", { count: "exact", head: true }).eq("closed", false),
     supabase
       .from("transactions")
       .select("posted_date")
       .order("posted_date", { ascending: false })
       .limit(1),
     supabase.from("categories").select("id, name, kind").order("sort_order"),
+    supabase
+      .from("transactions")
+      .select("country, posted_date")
+      .not("country", "is", null)
+      .is("trip_id", null)
+      .gte("posted_date", recentCutoff.toISOString().slice(0, 10)),
   ]);
+
+  const foreignRows = (foreignRes.data ?? []) as { country: string; posted_date: string }[];
+  const tripSuggestion =
+    foreignRows.length > 0
+      ? {
+          countries: [...new Set(foreignRows.map((r) => countryName(r.country)))],
+          count: foreignRows.length,
+          from: foreignRows.reduce((min, r) => (r.posted_date < min ? r.posted_date : min), foreignRows[0].posted_date),
+          to: foreignRows.reduce((max, r) => (r.posted_date > max ? r.posted_date : max), foreignRows[0].posted_date),
+        }
+      : null;
 
   const view = resolveCurrencyView(first(sp.cur), currencies);
   // Income here includes contributions deducted from your paycheck into investments.
   const seriesByCurrency = new Map(currencies.map((c) => [c, buildSeries(rows, c, months12, payroll)]));
   // Colors are decided from every currency, not just the ones shown.
-  const colors = assignColors(mergeCategoryTotals([...seriesByCurrency.values()]));
+  const merged = mergeCategoryTotals([...seriesByCurrency.values()]);
+  const colors = assignColors(merged);
+  const allColors = assignAllColors(merged);
   const inWindow = new Set(months12);
 
   return (
@@ -86,6 +112,8 @@ export default async function Overview({
       hasData={rows.some((r) => inWindow.has(r.month))}
       latestMonth={latest.data?.[0]?.posted_date?.slice(0, 7)}
       colors={colors}
+      allColors={allColors}
+      tripSuggestion={tripSuggestion}
       categories={(categoriesRes.data ?? []) as { id: string; name: string; kind: CategoryKind }[]}
       sections={view.shown.map((currency) => ({
         currency,

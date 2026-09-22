@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { clearLinkSession, readLinkSession, saveLinkSession } from "./plaid-browser";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearLinkSession, completeLink, readLinkSession, saveLinkSession } from "./plaid-browser";
 
 /** A stand-in for localStorage. */
 function fakeStore(initial: Record<string, string> = {}) {
@@ -84,5 +84,40 @@ describe("link session storage", () => {
     expect(() => saveLinkSession(session, broken, NOW)).not.toThrow();
     expect(readLinkSession(broken, NOW)).toBeNull();
     expect(() => clearLinkSession(broken)).not.toThrow();
+  });
+});
+
+describe("completeLink", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch() {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        return { ok: true, json: async () => ({}) } as Response;
+      }),
+    );
+    return calls;
+  }
+
+  it("adding an account to an existing connection only syncs -- it never exchanges a public token, so no new Plaid Item (and no extra credit) is created", async () => {
+    const calls = stubFetch();
+    await completeLink(null, { itemId: "item-1", kind: "bank" });
+    expect(calls).toEqual(["/api/plaid/sync"]);
+  });
+
+  it("a brand-new connection exchanges its public token to create the Item", async () => {
+    const calls = stubFetch();
+    await completeLink("public-token-abc", { kind: "bank" });
+    expect(calls).toEqual(["/api/plaid/exchange"]);
+  });
+
+  it("refuses to proceed as a new connection without a public token", async () => {
+    stubFetch();
+    await expect(completeLink(null, { kind: "bank" })).rejects.toThrow();
   });
 });

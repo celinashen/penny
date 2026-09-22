@@ -164,16 +164,47 @@ export function savingsRate(income: number, spent: number): number | null {
   return income > 0 ? (income - spent) / income : null;
 }
 
-export type Slice = { id: string; label: string; value: number; color: string };
+export type Slice = {
+  id: string;
+  label: string;
+  value: number;
+  color: string;
+  /** What's folded in, when this is the "Everything else" slice grouping more than one category. */
+  breakdown?: { id: string; label: string; value: number; color: string }[];
+};
 
 /**
  * Chart colors, in a fixed order. Validated for colorblind separation and
  * contrast; a 7th hue is never invented, so everything past the sixth is
- * folded into a gray "Other".
+ * folded into a gray "Other" on the donut -- expand it to see each one with
+ * its own color from EXTENDED_COLORS instead.
  */
 export const SLOT_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"];
 export const OTHER_COLOR = "#a8a69f";
 export const MAX_NAMED_SLICES = SLOT_COLORS.length;
+
+/**
+ * A color for every category, not just the six the donut can name as their
+ * own wedge. The first six match SLOT_COLORS exactly; past that the palette
+ * repeats every 18 categories, a fine tradeoff for a swatch that always sits
+ * next to its own label (unlike the donut wedges, these aren't validated for
+ * colorblind separation).
+ */
+export const EXTENDED_COLORS = [
+  ...SLOT_COLORS,
+  "#8659c9", // purple
+  "#2fb6c4", // cyan
+  "#8a9c2e", // olive
+  "#d1495b", // crimson
+  "#6f7bf0", // indigo
+  "#8a5a3c", // brown
+  "#c77dff", // orchid
+  "#4a9d5f", // mid green
+  "#c98f1c", // ochre
+  "#5c7a99", // slate blue
+  "#b25d8f", // mauve
+  "#7d8a4a", // moss
+];
 
 /**
  * Category totals across several currencies' series, for deciding colors only.
@@ -187,41 +218,66 @@ export function mergeCategoryTotals(list: Series[]): { id: string; total: number
   return [...totals.entries()].map(([id, total]) => ({ id, total }));
 }
 
+const rankCategories = (categories: { id: string; total: number }[]) =>
+  [...categories]
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total || a.id.localeCompare(b.id));
+
 /**
  * Gives each of your biggest categories a color that stays with it, so
  * "Groceries is blue" holds on every month and page. Pass totals over a long
- * window (the year), not the single month being viewed.
+ * window (the year), not the single month being viewed. Only the top
+ * MAX_NAMED_SLICES get one -- this is what decides which categories the donut
+ * draws as their own wedge versus folding into "Everything else"; for a color
+ * on every category, see `assignAllColors`.
  */
 export function assignColors(categories: { id: string; total: number }[]) {
   const colors = new Map<string, string>();
-  [...categories]
-    .filter((c) => c.total > 0)
-    .sort((a, b) => b.total - a.total || a.id.localeCompare(b.id))
+  rankCategories(categories)
     .slice(0, MAX_NAMED_SLICES)
     .forEach((c, i) => colors.set(c.id, SLOT_COLORS[i]));
   return colors;
 }
 
 /**
+ * Same ranking as `assignColors`, but every category gets a color (the first
+ * six identical to `assignColors`) -- for list views where every row needs
+ * its own swatch: the year table, the compare table, and the breakdown
+ * behind "Everything else".
+ */
+export function assignAllColors(categories: { id: string; total: number }[]) {
+  const colors = new Map<string, string>();
+  rankCategories(categories).forEach((c, i) =>
+    colors.set(c.id, EXTENDED_COLORS[i % EXTENDED_COLORS.length]),
+  );
+  return colors;
+}
+
+/**
  * Turns category amounts into chart slices: categories with an assigned color
  * keep it, everything else (and anything not positive) folds into "Other".
+ * `allColors` (from `assignAllColors`) gives each folded category its own
+ * color for the breakdown, so expanding "Everything else" doesn't show every
+ * row in the same gray.
  */
 export function toSlices(
   items: { id: string; name: string; value: number }[],
   colors: Map<string, string>,
+  allColors: Map<string, string> = colors,
 ): Slice[] {
   const named: Slice[] = [];
-  const folded: { name: string; value: number }[] = [];
+  const folded: { id: string; name: string; value: number }[] = [];
 
   for (const item of items) {
     if (item.value <= 0) continue;
     const color = colors.get(item.id);
     if (color) named.push({ id: item.id, label: item.name, value: item.value, color });
-    else folded.push({ name: item.name, value: item.value });
+    else folded.push({ id: item.id, name: item.name, value: item.value });
   }
 
   named.sort((a, b) => b.value - a.value);
   if (folded.length > 0) {
+    folded.sort((a, b) => b.value - a.value);
     named.push({
       id: "other",
       // One folded category keeps its own name, so it can't be mistaken for the
@@ -229,6 +285,15 @@ export function toSlices(
       label: folded.length === 1 ? folded[0].name : `Everything else (${folded.length})`,
       value: round(folded.reduce((t, f) => t + f.value, 0)),
       color: OTHER_COLOR,
+      breakdown:
+        folded.length > 1
+          ? folded.map((f) => ({
+              id: f.id,
+              label: f.name,
+              value: round(f.value),
+              color: allColors.get(f.id) ?? OTHER_COLOR,
+            }))
+          : undefined,
     });
   }
   return named;

@@ -9,7 +9,7 @@ export type LinkKind = "bank" | "investment";
 
 export type LinkSession = {
   token: string;
-  /** Set when repairing an existing connection (Plaid "update mode"). */
+  /** Set when reopening an existing connection (Plaid "update mode") to repair it or add an account. */
   itemId?: string;
   kind: LinkKind;
   /** Where to send you when it's done. */
@@ -93,8 +93,9 @@ export async function post(url: string, body: unknown) {
 }
 
 /**
- * What to do when Plaid Link succeeds. A new connection is saved and synced; a
- * repaired one (no public token) just syncs.
+ * What to do when Plaid Link succeeds. A new connection is saved and synced;
+ * update mode (no public token — repairing a login or adding an account)
+ * just syncs, which is enough to pick up any newly available account.
  */
 export async function completeLink(
   publicToken: string | null,

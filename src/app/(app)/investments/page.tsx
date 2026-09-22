@@ -34,6 +34,7 @@ export default async function Investments({
       .from("accounts")
       .select("id, name, institution, subtype, currency, payroll_funded, balance_current, balance_as_of")
       .eq("type", "investment")
+      .eq("closed", false)
       .order("name"),
     supabase
       .from("investment_flows")

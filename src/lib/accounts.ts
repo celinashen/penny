@@ -21,6 +21,7 @@ export type Account = {
   type: AccountType;
   currency: Currency;
   source: "plaid" | "csv" | "manual";
+  closed: boolean;
 };
 
 export const accountTypeLabel = (type: AccountType) =>
