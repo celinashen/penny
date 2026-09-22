@@ -14,6 +14,7 @@ import {
 } from "@/lib/transactions";
 import type { CurrencyView } from "@/lib/view-params";
 import { CurrencyOverview } from "./currency-overview";
+import { TripBanner, type TripSuggestion } from "./trip-banner";
 
 const pill =
   "rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm font-medium transition-colors hover:bg-raised";
@@ -47,6 +48,10 @@ export type OverviewProps = {
    * (not just the ones on screen), so a category never changes color.
    */
   colors: Map<string, string>;
+  /** A color for every category, including ones folded into "Everything else". */
+  allColors: Map<string, string>;
+  /** Set when recent foreign purchases aren't yet on a trip, to nudge creating one. */
+  tripSuggestion: TripSuggestion | null;
   /** Your categories, in your own order. */
   categories: { id: string; name: string; kind: CategoryKind }[];
 };
@@ -69,6 +74,8 @@ export function OverviewView({
   sections,
   today,
   colors,
+  allColors,
+  tripSuggestion,
   categories,
 }: OverviewProps) {
   if (!hasAccounts) {
@@ -96,6 +103,8 @@ export function OverviewView({
   return (
     <>
       <PageHeader eyebrow={formatMonthLabel(month)} title="Overview" />
+
+      {tripSuggestion && <TripBanner suggestion={tripSuggestion} />}
 
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -151,6 +160,7 @@ export function OverviewView({
               today={today}
               cumulative={s.cumulative}
               colors={colors}
+              allColors={allColors}
               expenseCategories={expenseCategories}
               investmentCategoryId={investmentCategoryId}
               merchants={s.merchants}

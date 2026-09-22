@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { Currency } from "@/lib/accounts";
 import type { Slice } from "@/lib/spending";
 import { formatMoney } from "@/lib/transactions";
@@ -75,24 +78,70 @@ export function percent(share: number) {
 /** The legend doubles as the chart's table view: every value is listed here. */
 export function DonutLegend({ slices, currency }: { slices: Slice[]; currency: Currency }) {
   const total = slices.reduce((t, s) => t + s.value, 0);
+  const [expanded, setExpanded] = useState(false);
   if (slices.length === 0) return <p className="text-muted">No spending this period.</p>;
 
   return (
     <ul className="flex w-full min-w-0 flex-col gap-2.5 @lg:w-auto @lg:flex-1">
-      {slices.map((s) => (
-        <li key={s.id} className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
-            style={{ backgroundColor: s.color }}
-          />
-          <span className="min-w-0 flex-1 truncate">{s.label}</span>
-          <span className="shrink-0 tabular-nums">{formatMoney(s.value, currency)}</span>
-          <span className="w-10 shrink-0 text-right text-sm tabular-nums text-muted">
-            {percent(s.value / total)}
-          </span>
-        </li>
-      ))}
+      {slices.map((s) => {
+        const row = (
+          <li key={s.id} className="flex items-center gap-3">
+            <span
+              aria-hidden
+              className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+              style={{ backgroundColor: s.color }}
+            />
+            <span className="min-w-0 flex-1 truncate">{s.label}</span>
+            <span className="shrink-0 tabular-nums">{formatMoney(s.value, currency)}</span>
+            <span className="w-10 shrink-0 text-right text-sm tabular-nums text-muted">
+              {percent(s.value / total)}
+            </span>
+          </li>
+        );
+
+        if (!s.breakdown) return row;
+
+        return (
+          <li key={s.id}>
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+              className="flex w-full items-center gap-3 rounded-md text-left transition-opacity hover:opacity-70"
+            >
+              <span
+                aria-hidden
+                className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                style={{ backgroundColor: s.color }}
+              />
+              <span className="min-w-0 flex-1 truncate underline decoration-dotted underline-offset-4">
+                {s.label}
+              </span>
+              <span className="shrink-0 tabular-nums">{formatMoney(s.value, currency)}</span>
+              <span className="w-10 shrink-0 text-right text-sm tabular-nums text-muted">
+                {percent(s.value / total)}
+              </span>
+            </button>
+            {expanded && (
+              <ul className="mt-2 flex flex-col gap-2 border-l border-line pl-4">
+                {s.breakdown.map((b) => (
+                  <li key={b.id} className="flex items-center gap-3 text-sm">
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 shrink-0 rounded-[2px]"
+                      style={{ backgroundColor: b.color }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-muted">{b.label}</span>
+                    <span className="shrink-0 tabular-nums text-muted">
+                      {formatMoney(b.value, currency)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

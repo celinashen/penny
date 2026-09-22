@@ -42,6 +42,7 @@ export function YearView({
   hasData,
   sections,
   colors,
+  allColors,
 }: {
   range: YearRange;
   view: CurrencyView;
@@ -50,6 +51,8 @@ export function YearView({
   sections: YearSection[];
   /** The same category colors the Overview uses, so a category never changes color. */
   colors: Map<string, string>;
+  /** A color for every category, including ones folded into "Everything else". */
+  allColors: Map<string, string>;
 }) {
   const first = months[0];
   const last = months[months.length - 1];
@@ -101,6 +104,7 @@ export function YearView({
               key={s.currency}
               section={s}
               colors={colors}
+              allColors={allColors}
               showHeading={sections.length > 1}
               mode={view.mode}
             />
@@ -114,11 +118,13 @@ export function YearView({
 function YearSectionView({
   section,
   colors,
+  allColors,
   showHeading,
   mode,
 }: {
   section: YearSection;
   colors: Map<string, string>;
+  allColors: Map<string, string>;
   showHeading: boolean;
   mode: string;
 }) {
@@ -141,6 +147,7 @@ function YearSectionView({
   const slices = toSlices(
     shown.categories.map((c) => ({ id: c.id, name: c.name, value: c.total })),
     colors,
+    allColors,
   );
 
   return (
@@ -221,7 +228,7 @@ function YearSectionView({
         <YearTable
           currency={currency}
           series={shown}
-          colors={colors}
+          colors={allColors}
           txHref={(categoryId, month) =>
             `/transactions?category=${categoryId === "uncategorized" ? "none" : categoryId}&month=${month}`
           }

@@ -42,6 +42,7 @@ export async function importTransactions(input: {
     .from("accounts")
     .select("id")
     .eq("id", accountId)
+    .eq("closed", false)
     .single();
   if (!account) return { error: "Couldn’t find that account." };
 

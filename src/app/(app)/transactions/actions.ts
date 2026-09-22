@@ -136,7 +136,7 @@ export async function linkReimbursement(
       .single(),
     supabase
       .from("transactions")
-      .select("id, amount, category:categories(kind)")
+      .select("id, amount, category:categories!transactions_category_id_fkey(kind)")
       .eq("id", expenseId)
       .single(),
   ]);

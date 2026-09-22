@@ -59,7 +59,14 @@ export function BankList({ items }: { items: BankItem[] }) {
                 variant="secondary"
               />
             ) : (
-              <SyncButton itemId={item.id} />
+              <div className="flex items-center gap-2">
+                <SyncButton itemId={item.id} />
+                <ConnectBankButton
+                  itemId={item.id}
+                  label="Add account"
+                  variant="secondary"
+                />
+              </div>
             )}
           </li>
         );

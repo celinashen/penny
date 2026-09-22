@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AccountForm } from "./account-form";
 import { AccountList } from "./account-list";
 import { BankList, type BankItem } from "./bank-list";
+import { ClosedAccounts } from "./closed-accounts";
 import { ConnectBankButton } from "./connect-bank-button";
 
 export default async function Accounts() {
@@ -13,7 +14,7 @@ export default async function Accounts() {
   const [accountsRes, itemsRes] = await Promise.all([
     supabase
       .from("accounts")
-      .select("id, name, institution, type, currency, source")
+      .select("id, name, institution, type, currency, source, closed")
       .order("name"),
     supabase
       .from("plaid_items")
@@ -21,7 +22,9 @@ export default async function Accounts() {
       .order("created_at"),
   ]);
 
-  const accounts = (accountsRes.data ?? []) as Account[];
+  const allAccounts = (accountsRes.data ?? []) as Account[];
+  const accounts = allAccounts.filter((a) => !a.closed);
+  const closedAccounts = allAccounts.filter((a) => a.closed);
   const items = (itemsRes.data ?? []) as BankItem[];
   const failed = accountsRes.error || itemsRes.error;
 
@@ -58,6 +61,20 @@ export default async function Accounts() {
             <AccountForm first={false} />
             <AccountList accounts={accounts} />
           </section>
+
+          {closedAccounts.length > 0 && (
+            <section>
+              <h2 className="mb-1 text-xl font-semibold tracking-[-0.02em]">
+                Closed accounts
+              </h2>
+              <p className="mb-4 text-sm text-muted">
+                Past transactions still count toward your history, but new ones won&rsquo;t be
+                added and these won&rsquo;t show up as a filter or picker elsewhere. Reopening
+                one is free and, for a synced bank, doesn&rsquo;t use another Plaid connection.
+              </p>
+              <ClosedAccounts accounts={closedAccounts} />
+            </section>
+          )}
         </div>
       )}
     </>

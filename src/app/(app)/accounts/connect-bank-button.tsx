@@ -16,8 +16,10 @@ import {
 } from "@/lib/plaid-browser";
 
 /**
- * Opens Plaid Link. Without `itemId` it connects a new bank; with one it
- * repairs that connection (Plaid "update mode"), which reuses the same Item.
+ * Opens Plaid Link. Without `itemId` it connects a new bank, spending one of
+ * your Plaid Items. With one it reopens that connection in Plaid "update
+ * mode" instead — reusing the same Item, whether to repair a broken login or
+ * to pick up a newly opened account (like a new credit card) at that bank.
  */
 export function ConnectBankButton({
   itemId,

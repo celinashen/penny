@@ -33,6 +33,7 @@ export function CurrencyOverview({
   today,
   cumulative,
   colors,
+  allColors,
   merchants,
   largest,
   txHref,
@@ -50,8 +51,10 @@ export function CurrencyOverview({
   today: Today | null;
   /** Running total per day so far (only for a month in progress). */
   cumulative: number[];
-  /** Category colors, shared across every section so a category never changes color. */
+  /** Colors for the donut's top categories, shared across every section so a category never changes color. */
   colors: Map<string, string>;
+  /** A color for every category, including ones folded into "Everything else". */
+  allColors: Map<string, string>;
   merchants: MerchantRow[];
   largest: LargestRow[];
   txHref: (categoryId: string) => string;
@@ -83,6 +86,7 @@ export function CurrencyOverview({
   const slices = toSlices(
     pace.categories.map((c) => ({ id: c.id, name: c.name, value: c.spent })),
     colors,
+    allColors,
   );
 
   return (
@@ -265,7 +269,7 @@ export function CurrencyOverview({
         </Card>
       </div>
 
-      <CompareTable currency={currency} month={month} pace={pace} colors={colors} txHref={txHref} />
+      <CompareTable currency={currency} month={month} pace={pace} colors={allColors} txHref={txHref} />
 
       <div>
         <h3 className="mb-1 text-xl font-semibold tracking-[-0.02em]">Rolling 12 months</h3>
@@ -292,7 +296,7 @@ export function CurrencyOverview({
         <YearTable
           currency={currency}
           series={series}
-          colors={colors}
+          colors={allColors}
           allCategories={expenseCategories}
           txHref={(categoryId, m) =>
             `/transactions?category=${categoryId === "uncategorized" ? "none" : categoryId}&month=${m}`

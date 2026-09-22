@@ -3,8 +3,9 @@ import { currentUser } from "@/lib/auth";
 import { plaidErrorMessage } from "@/lib/plaid/client";
 import { createLinkToken } from "@/lib/plaid/link";
 
-// Body: { itemId?: string, kind?: "bank" | "investment" }. With itemId, repairs
-// that connection (update mode); otherwise kind says what a new one is for.
+// Body: { itemId?: string, kind?: "bank" | "investment" }. With itemId, reopens
+// that connection (update mode) to repair it or add an account; otherwise kind
+// says what a new one is for.
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });

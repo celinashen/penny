@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  EXTENDED_COLORS,
   OTHER_COLOR,
   SLOT_COLORS,
+  assignAllColors,
   assignColors,
   buildSeries,
   change,
@@ -281,5 +283,41 @@ describe("chart colors and slices", () => {
 
   it("leaves out categories whose refunds cancelled their spending", () => {
     expect(toSlices([{ id: "a", name: "A", value: -5 }], assignColors(cats))).toEqual([]);
+  });
+
+  it("gives every category its own color, not just the top six", () => {
+    const colors = assignAllColors(cats);
+    expect(colors.size).toBe(cats.length);
+    expect(colors.get("a")).toBe(SLOT_COLORS[0]);
+    expect(colors.get("g")).toBe(EXTENDED_COLORS[6]);
+    expect(colors.get("h")).toBe(EXTENDED_COLORS[7]);
+  });
+
+  it("lists what's inside 'Everything else', each with its own color", () => {
+    const colors = assignColors(cats);
+    const allColors = assignAllColors(cats);
+    const slices = toSlices(
+      [
+        { id: "a", name: "A", value: 100 },
+        { id: "g", name: "G", value: 30 },
+        { id: "h", name: "H", value: 20 },
+      ],
+      colors,
+      allColors,
+    );
+    const other = slices[1];
+    expect(other.breakdown).toEqual([
+      { id: "g", label: "G", value: 30, color: allColors.get("g") },
+      { id: "h", label: "H", value: 20, color: allColors.get("h") },
+    ]);
+  });
+
+  it("doesn't offer a breakdown when only one category is folded", () => {
+    const slices = toSlices(
+      [{ id: "a", name: "A", value: 100 }, { id: "g", name: "Transportation", value: 30 }],
+      assignColors(cats),
+      assignAllColors(cats),
+    );
+    expect(slices[1].breakdown).toBeUndefined();
   });
 });

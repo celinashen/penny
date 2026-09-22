@@ -134,7 +134,7 @@ export async function fetchCurrencies(
   supabase: SupabaseClient,
   rows: AggRow[],
 ): Promise<Currency[]> {
-  const { data } = await supabase.from("accounts").select("currency");
+  const { data } = await supabase.from("accounts").select("currency").eq("closed", false);
   const found = new Set<Currency>((data ?? []).map((a) => a.currency as Currency));
   for (const r of rows) found.add(r.currency);
   return [...found];

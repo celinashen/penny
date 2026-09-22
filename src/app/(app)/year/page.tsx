@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import {
+  assignAllColors,
   assignColors,
   buildSeries,
   mergeCategoryTotals,
@@ -49,9 +50,9 @@ export default async function Year({
   const view = resolveCurrencyView(first(sp.cur), currencies);
   const shownSet = new Set(shownMonths);
   // Same colors as the Overview: ranked over the last 12 months and every currency.
-  const colors = assignColors(
-    mergeCategoryTotals(currencies.map((c) => buildSeries(rows, c, last12, payroll))),
-  );
+  const merged = mergeCategoryTotals(currencies.map((c) => buildSeries(rows, c, last12, payroll)));
+  const colors = assignColors(merged);
+  const allColors = assignAllColors(merged);
 
   return (
     <YearView
@@ -60,6 +61,7 @@ export default async function Year({
       months={shownMonths}
       hasData={rows.some((r) => shownSet.has(r.month))}
       colors={colors}
+      allColors={allColors}
       sections={view.shown.map((currency) => ({
         currency,
         shown: buildSeries(rows, currency, shownMonths, payroll),

@@ -16,8 +16,12 @@ export type LinkKind = "bank" | "investment";
 /**
  * A short-lived token that opens Plaid Link in the browser.
  *
- * Pass `itemId` to repair an existing connection (update mode). That reuses the
- * same Plaid Item, so it doesn't count against the Item limit; a fresh link does.
+ * Pass `itemId` to reopen an existing connection -- to repair it or to add an
+ * account -- in Plaid "update mode" (setting `access_token` below instead of
+ * `products`). Update mode reuses the same Item and never calls
+ * `item/public_token/exchange` (see `completeLink`), which is the only call
+ * that creates a new Item, so it never counts against the Item limit. Only a
+ * link token created *without* `itemId` spends one.
  */
 export async function createLinkToken(
   userId: string,
