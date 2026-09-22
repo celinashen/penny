@@ -7,7 +7,12 @@ export function plaid(): PlaidApi {
 
   const clientId = process.env.PLAID_CLIENT_ID;
   const secret = process.env.PLAID_SECRET;
-  const env = process.env.PLAID_ENV ?? "sandbox";
+  const env = process.env.PLAID_ENV;
+  if (env !== "sandbox" && env !== "production") {
+    throw new Error(
+      'PLAID_ENV must be explicitly set to "sandbox" or "production".',
+    );
+  }
   if (!clientId || !secret) {
     throw new Error("Missing PLAID_CLIENT_ID or PLAID_SECRET.");
   }

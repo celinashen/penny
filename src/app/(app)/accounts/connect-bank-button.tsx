@@ -75,7 +75,7 @@ export function ConnectBankButton({
       confirmNew &&
       !itemId &&
       !window.confirm(
-        "This uses one of your limited Plaid connections. Only connect a bank you haven’t already connected. Continue?",
+        "This uses one of your 10 limited Plaid production connections and cannot be undone by removing it. Only connect a bank you haven’t already connected. Continue?",
       )
     ) {
       return;
