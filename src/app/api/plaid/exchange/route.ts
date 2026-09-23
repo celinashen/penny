@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser } from "@/lib/auth";
+import { DEMO_BLOCKED_MESSAGE, currentUser, isDemoUser } from "@/lib/auth";
 import { plaidErrorMessage } from "@/lib/plaid/client";
 import { linkItem } from "@/lib/plaid/link";
 
@@ -11,6 +11,12 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  // Belt and suspenders: /api/plaid/link-token already refuses the demo
+  // account before it can ever get this far with a real public_token.
+  if (isDemoUser(user)) {
+    return NextResponse.json({ error: DEMO_BLOCKED_MESSAGE }, { status: 403 });
+  }
 
   const body = (await request.json().catch(() => ({}))) as {
     public_token?: unknown;

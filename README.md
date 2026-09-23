@@ -5,6 +5,45 @@ My personal budget app!
 Tracks card transactions and spending by category (USD and CAD kept separate),
 with banks connected through Plaid and a daily sync.
 
+## What it does
+
+**Overview** — a monthly (or trailing 12-month) picture of spending, income,
+and savings rate, per currency. Spending breaks down by category in a donut
+chart; every category gets its own color, and an "Everything else" slice
+expands to show exactly what's folded into it. This month is compared against
+last month and the same month a year ago, and projected to a month-end total
+based on your own history. A banner flags recent purchases made outside North
+America that aren't attached to a trip yet.
+
+**Transactions** — search, and filter by account, category, trip, or a custom
+date range. Add a transaction by hand, or import a bank's CSV export (columns
+and date format are auto-detected, and re-importing the same file skips
+duplicates). New transactions are auto-categorized from your own history, with
+a bulk "Categorize" pass for anything left uncertain. Select several at once to
+attach them to a trip, or link an incoming payment (Zelle, Venmo, a friend
+paying you back) to the expense it reimbursed, so the summaries reflect what
+you actually paid rather than what you fronted.
+
+**Trips** — group travel spending together. Attaching a transaction recategorizes
+it as Travel, and a reimbursement attached alongside nets against the trip's
+cost automatically. Each trip is a card showing its net cost, date range, and
+transaction count; opening it reveals a Spent / Reimbursed / Cost-you breakdown
+and a link to its transactions.
+
+**Year** — every category, every month, for the last 12 months or the year to
+date, in one table.
+
+**Investments** — brokerages connected through Plaid show holdings, current
+value, and gain or loss, using the cost basis the institution reports.
+Contributions are tracked too, including deposits taken straight from a
+paycheck before they ever reach your bank (so they still count as income).
+
+**Accounts** — connect a bank or brokerage through Plaid, or add one by hand.
+Rename any account, or close one — Plaid-linked or manual — without losing its
+history; a closed account drops out of pickers and totals but can be reopened
+for free. A brokerage that won't link through Plaid can still be added as a
+manual account and have its statements imported as a CSV.
+
 ## Running locally
 
 ```
@@ -26,6 +65,7 @@ commit it) with the variables below.
 | `CRON_SECRET` | Protects the daily sync endpoint (`/api/cron/sync`) |
 | `PLAID_REDIRECT_URI` | Optional. HTTPS redirect registered in Plaid, needed for OAuth banks in production |
 | `PLAID_WEBHOOK_URL` | Optional. Public URL Plaid calls when new transactions are ready |
+| `DEMO_ACCOUNT_EMAIL` | Optional. The email of a shared account anyone can sign into to try the app. That account can use everything except linking a real bank — blocked before Plaid is ever called, so it never spends a production Item |
 | `SUPABASE_ACCESS_TOKEN` | Optional, only for applying migrations from the command line |
 
 ## Deploying (Vercel + Supabase)
