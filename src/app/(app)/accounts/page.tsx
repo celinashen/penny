@@ -9,31 +9,24 @@ import { ConnectBankButton } from "./connect-bank-button";
 
 export default async function Accounts() {
   const supabase = await createClient();
-  // Row-level security limits every query here to the signed-in user. The
-  // token column on plaid_items is deliberately not selectable from here.
-  const [accountsRes, itemsRes, investmentItemsRes] = await Promise.all([
+  // Row-level security limits both queries to the signed-in user. The token
+  // column on plaid_items is deliberately not selectable from here.
+  const [accountsRes, itemsRes] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, name, institution, type, currency, source, closed")
       .order("name"),
     supabase
       .from("plaid_items")
-      .select("id, institution_name, status, last_synced_at, last_error, products")
+      .select("id, institution_name, status, last_synced_at, last_error")
       .order("created_at"),
-    // Which connections actually have a brokerage-type account under them, so
-    // "Enable investment tracking" only shows for those (Robinhood), not a
-    // plain bank (Chase, BofA) that could never use the Investments product.
-    supabase.from("accounts").select("plaid_item_id").eq("type", "investment"),
   ]);
 
   const allAccounts = (accountsRes.data ?? []) as Account[];
   const accounts = allAccounts.filter((a) => !a.closed);
   const closedAccounts = allAccounts.filter((a) => a.closed);
   const items = (itemsRes.data ?? []) as BankItem[];
-  const investmentItemIds = new Set(
-    (investmentItemsRes.data ?? []).flatMap((a) => (a.plaid_item_id ? [a.plaid_item_id] : [])),
-  );
-  const failed = accountsRes.error || itemsRes.error || investmentItemsRes.error;
+  const failed = accountsRes.error || itemsRes.error;
 
   return (
     <>
@@ -58,7 +51,7 @@ export default async function Accounts() {
                 confirmNew={process.env.PLAID_ENV === "production"}
               />
             </div>
-            <BankList items={items} investmentItemIds={investmentItemIds} />
+            <BankList items={items} />
           </section>
 
           <section>

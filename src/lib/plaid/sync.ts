@@ -398,29 +398,6 @@ export async function syncItem(
   }
 }
 
-/**
- * Records that Plaid granted an additional product (e.g. "investments") for
- * an Item that didn't originally request it, so the next sync actually pulls
- * that data instead of silently ignoring it.
- */
-export async function addItemProducts(
-  userId: string,
-  itemId: string,
-  products: string[],
-): Promise<void> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("plaid_items")
-    .select("products")
-    .eq("id", itemId)
-    .eq("user_id", userId)
-    .single();
-  if (error || !data) return;
-
-  const merged = [...new Set([...(data.products ?? []), ...products])];
-  await admin.from("plaid_items").update({ products: merged }).eq("id", itemId);
-}
-
 export async function syncUserItems(
   userId: string,
   itemId?: string,

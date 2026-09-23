@@ -16,19 +16,17 @@ export type LinkKind = "bank" | "investment";
 /**
  * A short-lived token that opens Plaid Link in the browser.
  *
- * Pass `itemId` to reopen an existing connection -- to repair it, to add an
- * account, or (with `addInvestments`) to grant the Investments product to a
- * connection that was linked without it -- in Plaid "update mode" (setting
- * `access_token` below instead of `products`). Update mode reuses the same
- * Item and never calls `item/public_token/exchange` (see `completeLink`),
- * which is the only call that creates a new Item, so it never counts against
- * the Item limit. Only a link token created *without* `itemId` spends one.
+ * Pass `itemId` to reopen an existing connection -- to repair it or to add an
+ * account -- in Plaid "update mode" (setting `access_token` below instead of
+ * `products`). Update mode reuses the same Item and never calls
+ * `item/public_token/exchange` (see `completeLink`), which is the only call
+ * that creates a new Item, so it never counts against the Item limit. Only a
+ * link token created *without* `itemId` spends one.
  */
 export async function createLinkToken(
   userId: string,
   itemId?: string,
   kind: LinkKind = "bank",
-  addInvestments = false,
 ): Promise<string> {
   const plaidEnv = process.env.PLAID_ENV;
   if (plaidEnv === "production") {
@@ -65,8 +63,6 @@ export async function createLinkToken(
       .single();
     if (error || !data) throw new Error("Connection not found.");
     request.access_token = decryptToken(data.access_token_enc);
-    // Requests Plaid's "add product" update-mode flow instead of a plain repair.
-    if (addInvestments) request.products = [Products.Investments];
   } else if (kind === "investment") {
     // Holdings and contributions. Plaid provides up to two years of history.
     request.products = [Products.Investments];

@@ -8,8 +8,6 @@ export type BankItem = {
   status: "good" | "needs_reauth" | "error";
   last_synced_at: string | null;
   last_error: string | null;
-  /** What this connection provides: "transactions", "investments", or both. */
-  products: string[];
 };
 
 function statusLine(item: BankItem) {
@@ -29,14 +27,7 @@ function statusLine(item: BankItem) {
   };
 }
 
-export function BankList({
-  items,
-  investmentItemIds,
-}: {
-  items: BankItem[];
-  /** Connections that have at least one brokerage-type account under them. */
-  investmentItemIds: Set<string>;
-}) {
+export function BankList({ items }: { items: BankItem[] }) {
   if (items.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-line px-5 py-8 text-center text-muted">
@@ -75,15 +66,6 @@ export function BankList({
                   label="Add account"
                   variant="secondary"
                 />
-                {investmentItemIds.has(item.id) && !item.products.includes("investments") && (
-                  <ConnectBankButton
-                    itemId={item.id}
-                    kind="investment"
-                    addInvestments
-                    label="Enable investment tracking"
-                    variant="secondary"
-                  />
-                )}
               </div>
             )}
           </li>
