@@ -1,151 +1,42 @@
-# penny
+# Penny
 
-My personal budget app!
+Penny is a personal budget app. Connect your bank and investment accounts (or
+add them by hand), and it turns your transactions into a clear picture of
+where your money goes — spending by category, trips, investments, and how
+this month compares to your own history.
 
-Tracks card transactions and spending by category (USD and CAD kept separate),
-with banks connected through Plaid and a daily sync.
+## Try it
 
-## What it does
+No sign-up needed — there's a public demo account:
 
-**Overview** — a monthly (or trailing 12-month) picture of spending, income,
-and savings rate, per currency. Spending breaks down by category in a donut
-chart; every category gets its own color, and an "Everything else" slice
-expands to show exactly what's folded into it. This month is compared against
-last month and the same month a year ago, and projected to a month-end total
-based on your own history. A banner flags recent purchases made outside North
-America that aren't attached to a trip yet.
+- **App:** [penny-blue.vercel.app](https://penny-blue.vercel.app)
+- **Email:** `demo@penny-blue.vercel.app`
+- **Password:** `u9LRuZGSDAw7mF4LkSQG`
 
-**Transactions** — search, and filter by account, category, trip, or a custom
-date range. Add a transaction by hand, or import a bank's CSV export (columns
-and date format are auto-detected, and re-importing the same file skips
-duplicates). New transactions are auto-categorized from your own history, with
-a bulk "Categorize" pass for anything left uncertain. Select several at once to
-attach them to a trip, or link an incoming payment (Zelle, Venmo, a friend
-paying you back) to the expense it reimbursed, so the summaries reflect what
-you actually paid rather than what you fronted.
+It comes preloaded with a few months of sample transactions, a trip, and a
+reimbursement, so every page has something to look at right away. Everything
+works except linking a real bank, which is turned off for this account.
 
-**Trips** — group travel spending together. Attaching a transaction recategorizes
-it as Travel, and a reimbursement attached alongside nets against the trip's
-cost automatically. Each trip is a card showing its net cost, date range, and
-transaction count; opening it reveals a Spent / Reimbursed / Cost-you breakdown
-and a link to its transactions.
+## What you can do
 
-**Year** — every category, every month, for the last 12 months or the year to
-date, in one table.
+- **Overview** — see what you've spent, earned, and saved this month (or the
+  last 12), broken down by category in a chart. This month is compared
+  against last month, the same month last year, and projected to where it'll
+  land based on your own habits.
+- **Transactions** — search and filter your activity, add one by hand, or
+  import a CSV from your bank. New transactions are categorized automatically.
+  Attach a payment someone sent you back to the expense it covered, so what
+  you see reflects what you actually paid.
+- **Trips** — group travel spending together. Attach transactions to a trip
+  and they're filed under Travel; a friend paying you back for their share
+  nets against the total automatically.
+- **Year** — every category, every month, laid out in one table.
+- **Investments** — connect a brokerage to see your holdings, what they're
+  worth, and your gain or loss, plus how much you've contributed over time.
+- **Accounts** — connect a bank, or add one by hand if it won't link. Rename
+  or close an account without losing its history.
 
-**Investments** — brokerages connected through Plaid show holdings, current
-value, and gain or loss, using the cost basis the institution reports.
-Contributions are tracked too, including deposits taken straight from a
-paycheck before they ever reach your bank (so they still count as income).
+## Running it yourself
 
-**Accounts** — connect a bank or brokerage through Plaid, or add one by hand.
-Rename any account, or close one — Plaid-linked or manual — without losing its
-history; a closed account drops out of pickers and totals but can be reopened
-for free. A brokerage that won't link through Plaid can still be added as a
-manual account and have its statements imported as a CSV.
-
-## Running locally
-
-```
-npm install
-npm run dev
-```
-
-Then open http://localhost:3000. The app needs a `.env.local` file (never
-commit it) with the variables below.
-
-## Environment variables
-
-| Name | What it is |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project URL and public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Bypasses row-level security. Server-only |
-| `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV` | Plaid keys; `PLAID_ENV` is `sandbox` or `production` |
-| `PLAID_TOKEN_KEY` | Base64 32-byte key that encrypts stored bank tokens. **Back it up:** if it is lost every bank must be re-linked, which uses up Plaid Items. Generate with `openssl rand -base64 32` |
-| `CRON_SECRET` | Protects the daily sync endpoint (`/api/cron/sync`) |
-| `PLAID_REDIRECT_URI` | Optional. HTTPS redirect registered in Plaid, needed for OAuth banks in production |
-| `PLAID_WEBHOOK_URL` | Optional. Public URL Plaid calls when new transactions are ready |
-| `DEMO_ACCOUNT_EMAIL` | Optional. The email of a shared account anyone can sign into to try the app. That account can use everything except linking a real bank — blocked before Plaid is ever called, so it never spends a production Item |
-| `SUPABASE_ACCESS_TOKEN` | Optional, only for applying migrations from the command line |
-
-## Deploying (Vercel + Supabase)
-
-1. Import the repo into Vercel and add the environment variables above (mark the
-   secrets as Sensitive). **Do not add `SUPABASE_ACCESS_TOKEN`**: it's an
-   account-wide key that is only for running migrations from your own machine.
-2. `PLAID_TOKEN_KEY` must be the same value everywhere the app runs, because they
-   all share one database. Keep a copy in a password manager.
-3. In Supabase (Authentication, URL Configuration) set the Site URL to the
-   deployed address and add it to the redirect URLs.
-4. Start with `PLAID_ENV=sandbox` and check the deployed site end to end before
-   switching to production. `PLAID_ENV` is required; the app will not silently
-   fall back to Sandbox. Each real bank login uses one of a limited number of
-   production Plaid Items.
-5. Before using production, register `https://<your-domain>/plaid/oauth` under
-   Allowed redirect URIs in the Plaid dashboard and set `PLAID_REDIRECT_URI` to
-   that exact address in Vercel. It must be HTTPS. Banks that use OAuth (Chase,
-   Bank of America and others) send you there to finish connecting.
-6. In Vercel, set the production deployment variables to the production Plaid
-   client ID and secret, `PLAID_ENV=production`, and the same
-   `PLAID_TOKEN_KEY` used by Supabase. Redeploy after changing them. Do not
-   click Connect until the deployment is using the production variables.
-7. The daily sync is a Vercel cron job (`vercel.json`) that calls
-   `/api/cron/sync`; Vercel sends `CRON_SECRET` automatically.
-8. After you and anyone else who will use the app have signed up, turn off new
-   sign-ups in Supabase.
-
-### Protecting limited production Items
-
-The Accounts and Investments pages ask for confirmation before creating a new
-production Item. Reconnecting an existing row uses Plaid update mode and does
-not consume another Item. Never delete a Plaid row or rotate `PLAID_TOKEN_KEY`:
-both can make an existing bank impossible to repair without linking it again.
-Use **Reconnect** when a bank reports that sign-in is required, and **Sync now**
-for a normal refresh.
-
-## Investments and paycheck contributions
-
-Brokerages (Fidelity, Robinhood...) connect through Plaid's Investments product
-and provide holdings, each account's total value, and deposits. Gain or loss uses
-the cost basis the institution reports; positions without one are left out and
-counted, never guessed.
-
-Money deducted from a paycheck and sent straight to an investment account never
-passes through the bank, so it would otherwise be missing from income. Each
-investment account has a "deposits come from my paycheck" setting. When it's on,
-deposits are added to **income** and to **money invested** on the Overview. It
-defaults to on for Fidelity accounts and off for everything else, because
-deposits into a brokerage like Robinhood usually come from your own bank account
-and would be counted twice (once as a transfer out of the bank, once as a deposit).
-
-## Database
-
-Schema changes live in `supabase/migrations/`, applied in order.
-There is no demo transaction or bank data in the app: a new account starts
-empty until you connect Plaid, import a CSV, or add a transaction manually.
-
-Incoming reimbursements can be attached to a recent expense from the
-Transactions page. The incoming transaction stays visible for auditing, but
-the linked amount is removed from income and reduces the original expense in
-the spending summaries. Removing the attachment restores the original totals.
-
-## Performance with a large history
-
-Opening the app never pulls your transactions. The rules that keep it fast:
-
-- **Pages read summaries, not transactions.** The Overview and Year pages call
-  database functions (`spending_by_month`, `spending_daily`, `top_merchants`,
-  `largest_purchases`) that return totals and a handful of top rows. What a page
-  reads stays the same size whether you have a thousand transactions or a million.
-  Load 100,000 transactions and the Overview still reads ~150 summary rows.
-- **The Transactions list is paginated** (50 rows a page). Filters and search use
-  indexes, including trigram indexes so searching descriptions stays fast.
-- **Nothing calls Plaid when a page loads.** Bank data arrives through the daily
-  cron job, "Sync now", or connecting a bank, and is stored in the database first.
-- **Big loads are resumable.** A sync or an auto-categorize run stops after ~45s
-  and continues on the next run instead of being killed by the serverless time
-  limit; a bank sync saves its place after every page, so no data is skipped or
-  repeated. CSV imports take up to 10,000 rows at a time and skip duplicates, so
-  importing a file again is safe.
-- **Add indexes with the queries that need them.** If you add a page that filters
-  or groups transactions, check it against a large data set first.
+Want to self-host Penny for your own finances? Setup, environment variables,
+and deployment are covered in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
