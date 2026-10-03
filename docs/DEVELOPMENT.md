@@ -24,7 +24,7 @@ commit it) with the variables below.
 | `CRON_SECRET` | Protects the daily sync endpoint (`/api/cron/sync`) |
 | `PLAID_REDIRECT_URI` | Optional. HTTPS redirect registered in Plaid, needed for OAuth banks in production |
 | `PLAID_WEBHOOK_URL` | Optional. Public URL Plaid calls when new transactions are ready |
-| `DEMO_ACCOUNT_EMAIL` | Optional. The email of a shared account anyone can sign into to try the app. That account can use everything except linking a real bank — blocked before Plaid is ever called, so it never spends a production Item |
+| `DEMO_ACCOUNT_EMAIL` | Optional. The email of a shared account anyone can sign into to try the app. That account can use everything except linking a real bank — blocked before Plaid is ever called, so it never spends a production Item. The daily cron also fills in that account's sample transactions for the current month (see `src/lib/demo-data.ts`) |
 | `SUPABASE_ACCESS_TOKEN` | Optional, only for applying migrations from the command line |
 
 ## Deploying (Vercel + Supabase)
@@ -80,7 +80,7 @@ and would be counted twice (once as a transfer out of the bank, once as a deposi
 ## Database
 
 Schema changes live in `supabase/migrations/`, applied in order.
-There is no demo transaction or bank data in the app: a new account starts
+Apart from the demo account's sample transactions, there is no seeded data: a new account starts
 empty until you connect Plaid, import a CSV, or add a transaction manually.
 
 Incoming reimbursements can be attached to a recent expense from the
