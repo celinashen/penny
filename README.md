@@ -13,7 +13,8 @@ No sign-up needed — there's a public demo account:
 - **Email:** `demo@penny-blue.vercel.app`
 - **Password:** `u9LRuZGSDAw7mF4LkSQG`
 
-It comes preloaded with a few months of sample transactions, a trip, and a
+It comes preloaded with sample transactions (new ones are added each day, so
+the current month is never empty), a trip, and a
 reimbursement, so every page has something to look at right away. Everything
 works except linking a real bank, which is turned off for this account.
 
