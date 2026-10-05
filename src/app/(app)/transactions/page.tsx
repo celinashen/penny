@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { EmptyState } from "@/components/empty-state";
 import { secondaryButtonClass } from "@/components/form-styles";
 import { PageHeader } from "@/components/page-header";
@@ -166,7 +167,12 @@ export default async function Transactions({
     else days.push({ date: tx.posted_date, items: [tx] });
   }
 
+  // A page past the end (rows were deleted, or an old link) is a range error
+  // from the database. Start over from the first page instead of failing.
+  if (error?.code === "PGRST103" && page > 1) redirect(pageHref(1));
+
   if (accountsRes.error || categoriesRes.error || error) {
+    console.error("Transactions failed to load", accountsRes.error ?? categoriesRes.error ?? error);
     return (
       <>
         <PageHeader title="Transactions" />

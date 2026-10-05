@@ -1,11 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { supabaseAnonKey, supabaseUrl } from "./env";
+import { fetchWithRetry } from "./fetch";
 
 export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(supabaseUrl(), supabaseAnonKey(), {
+    global: { fetch: fetchWithRetry },
     cookies: {
       getAll() {
         return cookieStore.getAll();
