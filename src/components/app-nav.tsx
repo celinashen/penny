@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 type Item = { href: string; label: string; icon: ReactNode };
 
@@ -118,35 +118,74 @@ export function SidebarNav() {
   );
 }
 
-/** Fixed bottom bar for phones. */
-export function TabBar() {
+/** Menu button and drop-down sheet for phones. */
+export function MobileMenu({ children }: { children: ReactNode }) {
   const isActive = useIsActive();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  // Close once the new page is showing.
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
   return (
-    <nav
-      aria-label="Main"
-      className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md rounded-3xl border border-line bg-surface/80 p-1.5 shadow-[0_8px_30px_-8px_rgba(14,21,18,0.18)] backdrop-blur-xl lg:hidden"
-    >
-      <ul className="grid grid-cols-6 gap-1">
-        {ITEMS.map(({ href, label, icon }) => {
-          const active = isActive(href);
-          return (
-            <li key={href}>
-              <Link
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[0.6875rem] font-medium transition-colors ${
-                  active
-                    ? "bg-raised text-foreground [&>svg]:text-accent"
-                    : "text-muted"
-                }`}
-              >
-                {icon}
-                {label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <>
+      <button
+        type="button"
+        aria-label={open ? "Close menu" : "Open menu"}
+        aria-expanded={open}
+        aria-controls="mobile-menu"
+        onClick={() => setOpen((o) => !o)}
+        className="grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-foreground transition-colors hover:bg-raised"
+      >
+        <svg {...iconProps}>
+          {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+        </svg>
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-30 lg:hidden" onClick={() => setOpen(false)}>
+          <div className="absolute inset-0 bg-foreground/20" />
+          <div
+            id="mobile-menu"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-x-3 top-[calc(4.25rem+env(safe-area-inset-top))] flex flex-col gap-3 rounded-3xl border border-line bg-surface p-2 shadow-[0_8px_30px_-8px_rgba(14,21,18,0.25)]"
+          >
+            <nav aria-label="Main" className="flex flex-col gap-1">
+              {ITEMS.map(({ href, label, icon }) => {
+                const active = isActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-base font-medium transition-colors ${
+                      active
+                        ? "bg-raised text-foreground [&>svg]:text-accent"
+                        : "text-muted hover:bg-raised/60 hover:text-foreground"
+                    }`}
+                  >
+                    {icon}
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="border-t border-line px-4 pb-2 pt-4">{children}</div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
