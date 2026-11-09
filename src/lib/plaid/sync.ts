@@ -407,7 +407,10 @@ export async function syncUserItems(
   if (itemId) query = query.eq("id", itemId);
   const { data, error } = await query;
   if (error) throw error;
-  return runAll((data ?? []) as ItemRow[], admin);
+  // Asking for one connection by name (right after Reconnect, or "Sync now")
+  // tries it even if it was waiting for a sign-in: the sign-in may have just
+  // happened. If it's still broken, the sync marks it again.
+  return runAll((data ?? []) as ItemRow[], admin, Boolean(itemId));
 }
 
 /** Every user's Items. Used by the daily cron job. */
@@ -418,7 +421,7 @@ export async function syncAllItems(): Promise<SyncResult[]> {
   return runAll((data ?? []) as ItemRow[], admin);
 }
 
-async function runAll(items: ItemRow[], admin: SupabaseClient) {
+async function runAll(items: ItemRow[], admin: SupabaseClient, retryReauth = false) {
   const results: SyncResult[] = [];
   // One budget shared by every connection in this request.
   const deadline = Date.now() + SYNC_BUDGET_MS;
@@ -437,7 +440,7 @@ async function runAll(items: ItemRow[], admin: SupabaseClient) {
       continue;
     }
     // Nothing to do until the user signs in to the bank again.
-    if (item.status === "needs_reauth") {
+    if (item.status === "needs_reauth" && !retryReauth) {
       results.push({
         itemId: item.id,
         institution: item.institution_name,
