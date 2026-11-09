@@ -111,3 +111,33 @@ export async function completeLink(
 
 export const DOUBLE_ADD_WARNING =
   "Refresh the page before trying again, so the same bank isn’t added twice.";
+
+type LinkExitError = { error_type: string; error_code: string; error_message: string; display_message: string | null };
+type LinkExitMetadata = { link_session_id: string; request_id: string; status: string | null; institution: { name: string } | null };
+
+/**
+ * When Plaid Link closes because of an error, reports it to the server log and
+ * returns a message to show, with the IDs Plaid support needs to trace it.
+ * Returns null when you simply closed Link yourself.
+ */
+export function reportLinkExit(
+  err: LinkExitError | null,
+  metadata: LinkExitMetadata,
+  context: Pick<LinkSession, "itemId" | "kind">,
+): string | null {
+  if (!err) return null;
+  const details = {
+    ...context,
+    error_type: err.error_type,
+    error_code: err.error_code,
+    error_message: err.error_message,
+    status: metadata.status,
+    institution: metadata.institution?.name ?? null,
+    link_session_id: metadata.link_session_id,
+    request_id: metadata.request_id,
+  };
+  // Best effort: the message below still shows if this doesn't get through.
+  post("/api/plaid/link-exit", details).catch(() => {});
+  const reason = err.display_message || err.error_message || "Plaid ran into a problem.";
+  return `${reason} (${err.error_code}). Plaid session ID: ${metadata.link_session_id}`;
+}

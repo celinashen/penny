@@ -9,6 +9,7 @@ import {
   clearLinkSession,
   completeLink,
   readLinkSession,
+  reportLinkExit,
   type LinkSession,
 } from "@/lib/plaid-browser";
 
@@ -66,9 +67,12 @@ export function OAuthReturn() {
     token: session?.token ?? null,
     receivedRedirectUri: state.phase === "ready" ? state.receivedRedirectUri : undefined,
     onSuccess,
-    onExit: () => {
+    onExit: (err, metadata) => {
       clearLinkSession();
-      router.replace(session?.returnTo ?? "/accounts");
+      const message = session ? reportLinkExit(err, metadata, session) : null;
+      // Stay here to show what went wrong; a plain close goes straight back.
+      if (message) setState({ phase: "error", message });
+      else router.replace(session?.returnTo ?? "/accounts");
     },
   });
 

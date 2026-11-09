@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearLinkSession, completeLink, readLinkSession, saveLinkSession } from "./plaid-browser";
+import { clearLinkSession, completeLink, readLinkSession, reportLinkExit, saveLinkSession } from "./plaid-browser";
 
 /** A stand-in for localStorage. */
 function fakeStore(initial: Record<string, string> = {}) {
@@ -119,5 +119,31 @@ describe("completeLink", () => {
   it("refuses to proceed as a new connection without a public token", async () => {
     stubFetch();
     await expect(completeLink(null, { kind: "bank" })).rejects.toThrow();
+  });
+});
+
+describe("reportLinkExit", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const metadata = { link_session_id: "sess-1", request_id: "req-1", status: null, institution: { name: "Bank of America" } };
+
+  it("stays quiet when you close Link yourself", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(reportLinkExit(null, metadata, { kind: "bank" })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("logs the error and returns a message with the code and session ID", () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    const message = reportLinkExit(
+      { error_type: "API_ERROR", error_code: "INTERNAL_SERVER_ERROR", error_message: "an unexpected error occurred", display_message: null },
+      metadata,
+      { itemId: "item-1", kind: "bank" },
+    );
+    expect(message).toBe("an unexpected error occurred (INTERNAL_SERVER_ERROR). Plaid session ID: sess-1");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/plaid/link-exit");
+    expect(JSON.parse(init.body)).toMatchObject({ itemId: "item-1", error_code: "INTERNAL_SERVER_ERROR", request_id: "req-1" });
   });
 });
