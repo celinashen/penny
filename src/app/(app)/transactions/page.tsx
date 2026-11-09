@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { EmptyState } from "@/components/empty-state";
 import { secondaryButtonClass } from "@/components/form-styles";
 import { PageHeader } from "@/components/page-header";
@@ -12,7 +13,8 @@ import {
 } from "@/lib/transactions";
 import { AddTransaction } from "./add-transaction";
 import { AutoCategorizeButton } from "./auto-categorize-button";
-import { FilterBar, type Filters } from "./filter-bar";
+import { FilterBar } from "./filter-bar";
+import { filtersQuery, hasFilters, type Filters } from "./filters";
 import { TransactionList } from "./transaction-list";
 
 // Server actions started from this page (auto-categorize) get the longest request time.
@@ -22,6 +24,11 @@ type SearchParams = Record<string, string | string[] | undefined>;
 
 const first = (v: string | string[] | undefined) =>
   (Array.isArray(v) ? v[0] : v) ?? "";
+
+// Every value of a repeated key (account=a&account=b), deduped, keeping only
+// id-shaped values so nothing can break out of an .in()/.or() filter.
+const all = (v: string | string[] | undefined) =>
+  [...new Set((Array.isArray(v) ? v : v ? [v] : []).filter((s) => /^[\w-]+$/.test(s)))];
 
 // PostgREST treats these as syntax inside an .or() filter.
 const cleanSearch = (q: string) => q.replace(/[%,()*\\]/g, " ").trim();
@@ -45,16 +52,13 @@ export default async function Transactions({
   const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
   const filters: Filters = {
     q: first(sp.q).trim(),
-    account: first(sp.account),
-    category: first(sp.category),
+    account: all(sp.account),
+    category: all(sp.category),
     month: first(sp.month),
-    trip: first(sp.trip),
+    trip: all(sp.trip),
     from: isDate(first(sp.from)) ? first(sp.from) : "",
     to: isDate(first(sp.to)) ? first(sp.to) : "",
   };
-  // Set by the Overview's "looks like you traveled" banner: purchases made
-  // abroad that aren't already accounted for by a trip.
-  const foreignOnly = first(sp.foreign) === "1";
   const page = Math.max(1, Number.parseInt(first(sp.page), 10) || 1);
 
   const supabase = await createClient();
@@ -105,12 +109,18 @@ export default async function Transactions({
     const range = monthRange(filters.month);
     if (range) query = query.gte("posted_date", range.from).lt("posted_date", range.to);
   }
-  if (filters.account) query = query.eq("account_id", filters.account);
-  if (filters.category === "none") query = query.is("category_id", null);
-  else if (filters.category) query = query.eq("category_id", filters.category);
-  if (filters.trip === "none") query = query.is("trip_id", null);
-  else if (filters.trip) query = query.eq("trip_id", filters.trip);
-  if (foreignOnly) query = query.not("country", "is", null).is("trip_id", null);
+  if (filters.account.length) query = query.in("account_id", filters.account);
+  // "none" means the column is empty; it can be picked alongside real ids.
+  for (const [column, picked] of [
+    ["category_id", filters.category],
+    ["trip_id", filters.trip],
+  ] as const) {
+    const ids = picked.filter((id) => id !== "none");
+    const none = picked.includes("none");
+    if (none && ids.length) query = query.or(`${column}.is.null,${column}.in.(${ids.join(",")})`);
+    else if (none) query = query.is(column, null);
+    else if (ids.length) query = query.in(column, ids);
+  }
   const q = cleanSearch(filters.q);
   if (q) query = query.or(`description.ilike.%${q}%,merchant.ilike.%${q}%`);
 
@@ -148,11 +158,10 @@ export default async function Transactions({
   const total = count ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const showCurrency = new Set(accounts.map((a) => a.currency)).size > 1;
-  const filtered = Object.values(filters).some(Boolean);
+  const filtered = hasFilters(filters);
 
   const pageHref = (p: number) => {
-    const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
+    const params = filtersQuery(filters);
     if (p > 1) params.set("page", String(p));
     const s = params.toString();
     return `/transactions${s ? `?${s}` : ""}`;
@@ -166,7 +175,12 @@ export default async function Transactions({
     else days.push({ date: tx.posted_date, items: [tx] });
   }
 
+  // A page past the end (rows were deleted, or an old link) is a range error
+  // from the database. Start over from the first page instead of failing.
+  if (error?.code === "PGRST103" && page > 1) redirect(pageHref(1));
+
   if (accountsRes.error || categoriesRes.error || error) {
+    console.error("Transactions failed to load", accountsRes.error ?? categoriesRes.error ?? error);
     return (
       <>
         <PageHeader title="Transactions" />

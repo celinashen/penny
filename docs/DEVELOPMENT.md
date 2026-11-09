@@ -5,6 +5,8 @@ actually does, see the main [README](../README.md).
 
 ## Running locally
 
+Needs Node 22 or newer (`.nvmrc` pins 24).
+
 ```
 npm install
 npm run dev

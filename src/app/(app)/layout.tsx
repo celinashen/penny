@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { SidebarNav, TabBar } from "@/components/app-nav";
+import { MobileMenu, SidebarNav } from "@/components/app-nav";
 import { Wordmark } from "@/components/wordmark";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../login/actions";
@@ -44,15 +44,20 @@ export default async function AppLayout({
       <div className="min-w-0">
         <header className="sticky top-0 z-10 flex items-center justify-between bg-background/80 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl lg:hidden">
           <Wordmark className="text-xl" />
-          <SignOutButton />
+          <MobileMenu>
+            <div className="flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm text-muted" title={data.user.email}>
+                {data.user.email}
+              </p>
+              <SignOutButton />
+            </div>
+          </MobileMenu>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-32 lg:px-10 lg:py-12">
+        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-16 lg:px-10 lg:py-12">
           {children}
         </main>
       </div>
-
-      <TabBar />
     </div>
   );
 }

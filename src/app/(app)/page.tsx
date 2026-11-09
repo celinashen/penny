@@ -1,5 +1,4 @@
 import { PageHeader } from "@/components/page-header";
-import { countryName } from "@/lib/categorize/foreign";
 import { buildPace, cumulativeByDay, type Today } from "@/lib/pace";
 import { assignAllColors, assignColors, buildSeries, mergeCategoryTotals, monthsEndingAt } from "@/lib/spending";
 import {
@@ -60,13 +59,7 @@ export default async function Overview({
     );
   }
 
-  // Purchases made abroad that aren't already accounted for by a trip, recent
-  // enough to still be worth a nudge -- "flag at the top of Overview" that a
-  // trip might be worth creating for them.
-  const recentCutoff = new Date(now);
-  recentCutoff.setDate(recentCutoff.getDate() - 60);
-
-  const [currencies, accounts, latest, categoriesRes, foreignRes] = await Promise.all([
+  const [currencies, accounts, latest, categoriesRes] = await Promise.all([
     fetchCurrencies(supabase, rows),
     supabase.from("accounts").select("id", { count: "exact", head: true }).eq("closed", false),
     supabase
@@ -75,24 +68,7 @@ export default async function Overview({
       .order("posted_date", { ascending: false })
       .limit(1),
     supabase.from("categories").select("id, name, kind").order("sort_order"),
-    supabase
-      .from("transactions")
-      .select("country, posted_date")
-      .not("country", "is", null)
-      .is("trip_id", null)
-      .gte("posted_date", recentCutoff.toISOString().slice(0, 10)),
   ]);
-
-  const foreignRows = (foreignRes.data ?? []) as { country: string; posted_date: string }[];
-  const tripSuggestion =
-    foreignRows.length > 0
-      ? {
-          countries: [...new Set(foreignRows.map((r) => countryName(r.country)))],
-          count: foreignRows.length,
-          from: foreignRows.reduce((min, r) => (r.posted_date < min ? r.posted_date : min), foreignRows[0].posted_date),
-          to: foreignRows.reduce((max, r) => (r.posted_date > max ? r.posted_date : max), foreignRows[0].posted_date),
-        }
-      : null;
 
   const view = resolveCurrencyView(first(sp.cur), currencies);
   // Income here includes contributions deducted from your paycheck into investments.
@@ -113,7 +89,6 @@ export default async function Overview({
       latestMonth={latest.data?.[0]?.posted_date?.slice(0, 7)}
       colors={colors}
       allColors={allColors}
-      tripSuggestion={tripSuggestion}
       categories={(categoriesRes.data ?? []) as { id: string; name: string; kind: CategoryKind }[]}
       sections={view.shown.map((currency) => ({
         currency,

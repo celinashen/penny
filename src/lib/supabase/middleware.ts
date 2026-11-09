@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAnonKey, supabaseUrl } from "./env";
+import { fetchWithRetry } from "./fetch";
 
 // Paths reachable without being signed in.
 const PUBLIC_PATHS = ["/login", "/auth"];
@@ -13,6 +14,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(supabaseUrl(), supabaseAnonKey(), {
+    global: { fetch: fetchWithRetry },
     cookies: {
       getAll() {
         return request.cookies.getAll();
