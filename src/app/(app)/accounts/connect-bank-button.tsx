@@ -12,6 +12,7 @@ import {
   clearLinkSession,
   completeLink,
   post,
+  reportLinkExit,
   saveLinkSession,
 } from "@/lib/plaid-browser";
 
@@ -61,10 +62,11 @@ export function ConnectBankButton({
   const { open, ready } = usePlaidLink({
     token,
     onSuccess,
-    onExit: () => {
+    onExit: (err, metadata) => {
       clearLinkSession();
       setBusy(false);
       setToken(null);
+      setError(reportLinkExit(err, metadata, { itemId, kind }));
     },
   });
 
